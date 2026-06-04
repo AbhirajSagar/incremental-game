@@ -1,0 +1,51 @@
+using System;
+using System.Collections.Generic;
+using DG.Tweening;
+using UnityEngine;
+
+public class CameraManager : Singleton<CameraManager>
+{
+    public static List<Transform> AlwaysFaceCamera = new();
+
+    public Camera MainCamera;
+    public SerializableDictionary<CAMERA_SHAKE, CameraShakeSettings> CameraShakeSettings;
+
+    
+    private bool IsShaking = false;
+    private CAMERA_SHAKE CurrentShakeType = CAMERA_SHAKE.NONE;
+
+    private void LateUpdate()
+    {
+        for(int i = 0; i < AlwaysFaceCamera.Count; i++)
+        {
+            AlwaysFaceCamera[i].rotation = MainCamera.transform.rotation;
+        }
+    }
+
+    public void TriggerCameraShake(CAMERA_SHAKE ShakeType)
+    {
+        if(ShakeType == CAMERA_SHAKE.NONE) return;
+        if(IsShaking)
+        {
+            if(ShakeType <= CurrentShakeType)
+            {
+                return;
+            }
+            else
+            {
+                MainCamera.DOComplete();
+            }
+        }
+
+        if (CameraShakeSettings.TryGetValue(ShakeType, out CameraShakeSettings settings))
+        {
+            MainCamera.DOShakePosition(settings.Duration, settings.Strength).SetLink(gameObject).OnComplete(() =>
+            {
+                IsShaking = false;
+                CurrentShakeType = CAMERA_SHAKE.NONE;
+            });
+            IsShaking = true;
+            CurrentShakeType = ShakeType;
+        }
+    }
+}
