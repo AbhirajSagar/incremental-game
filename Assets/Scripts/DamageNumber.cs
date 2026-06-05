@@ -7,29 +7,39 @@ public class DamageNumber : MonoBehaviour
 {
     public TextMeshPro Label;
     public float DelayInFade = 0.2f;
-    public MinMax<float> AnimationDuration;
-    public MinMax<Vector3> AnimationDistance;
+    
+    public MinMaxFloat AnimationDuration;
+    public MinMaxVector3 AnimationDistance;
+
+    private Action<DamageNumber> onCompleteCallback;
 
     private void OnEnable()
     {
-        Label.enabled = false;
-    }
-
-    public void Initialize(float damage)
-    {
-        Label.text = ((int) damage).ToString();
         CameraManager.AlwaysFaceCamera.Add(transform);
-        Label.enabled = true;
-
-        float animDuration = AnimationDuration.GetRandomValue();
-        Vector3 TargetPos = transform.position + AnimationDistance.GetRandomValue();
-
-        transform.DOMove(TargetPos, animDuration); 
-        Label.DOFade(0, animDuration).SetDelay(DelayInFade);
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
         CameraManager.AlwaysFaceCamera.Remove(transform);
+    }
+
+    public void Initialize(float damage, Action<DamageNumber> onComplete)
+    {
+        onCompleteCallback = onComplete;
+        Label.text = ((int)damage).ToString();
+        
+        // Reset label from previous pooled uses
+        Label.alpha = 1f;
+        
+        float animDuration = AnimationDuration.GetRandomValue();
+        Vector3 targetPos = transform.position + AnimationDistance.GetRandomValue();
+
+        transform.DOMove(targetPos, animDuration).SetLink(gameObject); 
+        Label.DOFade(0, animDuration).SetDelay(DelayInFade).SetLink(gameObject).OnComplete(Deactivate);
+    }
+
+    private void Deactivate()
+    {
+        onCompleteCallback?.Invoke(this);
     }
 }

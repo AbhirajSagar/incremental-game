@@ -1,13 +1,35 @@
 using UnityEngine;
+using UnityEngine.Pool;
 
-public static class DamageNumbersGenerator
+public class DamageNumbersGenerator : Singleton<DamageNumbersGenerator>
 {
-    public static Transform CreateDamageNumber(Vector3 position, float damage)
+    [Header("References")]
+    public DamageNumber Prefab; // Assign via Inspector (No more Resources.Load)
+
+    private ObjectPool<DamageNumber> pool;
+
+    protected override void Awake()
     {
-        DamageNumber Prefab = Resources.Load<DamageNumber>(nameof(DamageNumber));
-        DamageNumber Clone = Object.Instantiate(Prefab, position, Quaternion.identity);
-        Clone.Initialize(damage);
-        
-        return Clone.transform;
+        base.Awake();
+        pool = new ObjectPool<DamageNumber>(
+            createFunc: () => Instantiate(Prefab, transform),
+            actionOnGet: (obj) => obj.gameObject.SetActive(true),
+            actionOnRelease: (obj) => obj.gameObject.SetActive(false),
+            actionOnDestroy: (obj) => Destroy(obj.gameObject),
+            defaultCapacity: 20,
+            maxSize: 100
+        );
+    }
+
+    public void Spawn(Vector3 position, float damage)
+    {
+        DamageNumber clone = pool.Get();
+        clone.transform.position = position;
+        clone.Initialize(damage, ReturnToPool);
+    }
+
+    private void ReturnToPool(DamageNumber num)
+    {
+        pool.Release(num);
     }
 }

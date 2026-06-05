@@ -10,7 +10,9 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
 
     [Header("SPAWN SETTINGS")]
     public float SpawnInterval = 1f;
-    public MinMax<int> InitialSpawnCount = new MinMax<int>(8, 24);
+    
+    // UPDATED: Now uses the new struct for better performance!
+    public MinMaxInt InitialSpawnCount = new MinMaxInt { Min = 8, Max = 24 };
 
     [Header("REFERENCES")]
     public Fish FishPrefab;
@@ -34,6 +36,8 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
 
     private void SpawnFish()
     {
+        if (SpawnBoundsArray == null || SpawnBoundsArray.Length == 0) return;
+
         int index = UnityEngine.Random.Range(0, SpawnBoundsArray.Length);
 
         Fish FishInstance = SpawnFishInBounds(SpawnBoundsArray[index]);
@@ -61,10 +65,13 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireCube(transform.position + SpawnBounds.Offset, SpawnBounds.Size);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[0].Offset, SpawnBoundsArray[0].Size);
+        if (SpawnBoundsArray != null && SpawnBoundsArray.Length >= 2)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[0].Offset, SpawnBoundsArray[0].Size);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[1].Offset, SpawnBoundsArray[1].Size);
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[1].Offset, SpawnBoundsArray[1].Size);
+        }
     }
 }

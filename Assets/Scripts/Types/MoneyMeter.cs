@@ -2,24 +2,27 @@ using System;
 using TMPro;
 
 [Serializable]
-public class MoneyMeter : IConfigInitializable
+public class MoneyMeter : ISessionBindable
 {
     public TextMeshProUGUI Label;
-    private int CurrentMoney
-    {
-        set
-        {
-            _CurMoney = value;
-            Label.text = $"${value}";
-        }
 
-        get => _CurMoney;
+    public void Bind(GameSession session)
+    {
+        session.OnMoneyChanged += OnMoneyChanged;
     }
 
-    private int _CurMoney;
-
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    public void Unbind(GameSession session)
     {
-        CurrentMoney = Config.Money;
+        session.OnMoneyChanged -= OnMoneyChanged;
+    }
+
+    public void ForceUpdate(int currentMoney)
+    {
+        OnMoneyChanged(currentMoney);
+    }
+
+    private void OnMoneyChanged(int currentMoney)
+    {
+        Label.text = $"${currentMoney}";
     }
 }

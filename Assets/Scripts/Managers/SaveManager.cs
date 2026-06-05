@@ -1,0 +1,28 @@
+using System.IO;
+using UnityEngine;
+
+public class SaveManager
+{
+    private static readonly string FileName = "playerData.json";
+
+    public static void SaveNewData(SaveData Data)
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+        string json = JsonUtility.ToJson(Data, true);
+
+        File.WriteAllText(path, json);
+    }
+
+    public static SaveData LoadData()
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+
+        if (!File.Exists(path))
+        {
+            return new SaveData();
+        }
+
+        string json = File.ReadAllText(path);
+        return JsonUtility.FromJson<SaveData>(json);
+    }
+}

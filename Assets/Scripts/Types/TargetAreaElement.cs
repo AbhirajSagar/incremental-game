@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 [Serializable]
-public class TargetAreaElement : IConfigInitializable
+public class TargetAreaElement : IConfigurable
 {
     public RectTransform Ring;
     public Material RingProceduralMaterial;
@@ -11,14 +11,11 @@ public class TargetAreaElement : IConfigInitializable
     public Vector2 Position 
     { 
         get => Ring.position;
-        set
-        {
-            Ring.position = value;
-        }
+        set => Ring.position = value;
     }
 
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    public void ApplyConfig(GameConfig config)
     {
-        RingProceduralMaterial.SetFloat("_Radius", Config.AttackRadius * RingRadiusAdjust);
+        RingProceduralMaterial.SetFloat("_Radius", config.AttackRadius * RingRadiusAdjust);
     }
 }

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
@@ -19,7 +18,6 @@ public class Fish : MonoBehaviour, IClickable
 
     [Header("ANIMATION SETTINGS")]
     public float AnimationDuration = 0.5f;
-    public Vector3 SquishStretchAmount = new Vector3(0.3f, -0.3f, 0.3f);
     public float AutoHideHealthbarDuration = 2f;
 
     [Header("EFFECTS")]
@@ -27,8 +25,7 @@ public class Fish : MonoBehaviour, IClickable
 
     private float CurHealth;
     private Vector3? TargetPos;
-    private float DurationToReachTarget;
-
+    
     private Vector3 originalScale;
     private Tween hitTween;
     private Tween healthbarTween;
@@ -40,11 +37,9 @@ public class Fish : MonoBehaviour, IClickable
     {
         AllFishes.Add(this);
 
-
         originalScale = transform.localScale;
         HealthbarUICanvas.worldCamera = Camera.main;
-        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
-
+        
         CurHealth = Health;
         HealthbarFill.fillAmount = 1f;
 
@@ -52,9 +47,26 @@ public class Fish : MonoBehaviour, IClickable
         IsHealthbarVisible = false;
     }
 
+    private void OnEnable()
+    {
+        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
+    }
+
+    private void OnDisable()
+    {
+        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
+    }
+
+    private void OnDestroy()
+    {
+        AllFishes.Remove(this);
+    }
+
     private void Update()
     {
-        if (TargetPos != null) transform.LookAt(TargetPos.Value);
+        if (TargetPos != null && FishState == FISH_STATE.ALIVE) 
+            transform.LookAt(TargetPos.Value);
+            
         if (IsHealthbarVisible && Time.time - LastDamagedTime >= AutoHideHealthbarDuration)
         {
             IsHealthbarVisible = false;
@@ -66,8 +78,8 @@ public class Fish : MonoBehaviour, IClickable
     public void SetTargetPos(Vector3 pos)
     {
         TargetPos = pos;
-        DurationToReachTarget = Vector3.Distance(transform.position, TargetPos.Value) / Speed;
-        transform.DOMove(TargetPos.Value, DurationToReachTarget).SetEase(Ease.Linear).SetLink(gameObject);
+        float durationToReachTarget = Vector3.Distance(transform.position, TargetPos.Value) / Speed;
+        transform.DOMove(TargetPos.Value, durationToReachTarget).SetEase(Ease.Linear).SetLink(gameObject);
     }
 
     public void OnClick()
@@ -94,20 +106,19 @@ public class Fish : MonoBehaviour, IClickable
         transform.localScale = originalScale;
         hitTween = transform.DOShakeScale(0.5f, AnimationDuration, 10, 1f).SetLink(gameObject);
 
-        CurHealth = Mathf.Max(CurHealth - ConfigManager.Instance.Damage, 0);
+        float damageAmount = GameManager.Instance.Config.Damage;
+        CurHealth = Mathf.Max(CurHealth - damageAmount, 0);
         HealthbarFill.fillAmount = CurHealth / Health;
-        DamageNumbersGenerator.CreateDamageNumber(transform.position, ConfigManager.Instance.Damage);
+        
+        DamageNumbersGenerator.Instance.Spawn(transform.position, damageAmount);
 
-        if (CurHealth == 0)
-        {
-            Death();
-        }
+        if (CurHealth == 0) Death();
     }
 
     private void Death()
     {
         FishState = FISH_STATE.DEAD;
-
+        transform.DOKill();
         hitTween?.Kill();
         healthbarTween?.Kill();
 
@@ -117,21 +128,18 @@ public class Fish : MonoBehaviour, IClickable
         DeathEffect.transform.SetParent(null, true);
         DeathEffect.Play();
 
-        ConfigManager.Instance.FishSold(SellingPrice);
+        GameManager.Instance.Session.AddMoney(SellingPrice);
         Destroy(gameObject, 1f);
-    }
-
-    private void OnDestroy()
-    {
-        AllFishes.Remove(this);
-        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
     }
 
     public void OxygenFinishedDespawn()
     {
+        if (FishState == FISH_STATE.DEAD) return;
+        FishState = FISH_STATE.DEAD;
+        
         transform.DOKill();
-        healthbarTween.Kill();
-        healthbarTween.Kill();
+        hitTween?.Kill();
+        healthbarTween?.Kill();
         transform.DOScale(Vector3.zero, 0.1f).SetEase(Ease.InBounce).OnComplete(() => Destroy(gameObject));
     }
 }

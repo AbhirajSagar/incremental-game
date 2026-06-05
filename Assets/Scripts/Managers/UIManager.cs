@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 public class UIManager : Singleton<UIManager>
@@ -9,35 +8,43 @@ public class UIManager : Singleton<UIManager>
 
     [Header("UI")]
     public DiveCompleteScreen DiveCompleteUI;
-    private IConfigInitializable[] ConfigInitializables;
 
     private void Start()
     {
-        ConfigInitializables = new IConfigInitializable[] 
-        { 
-            TargetAreaSystem,
-            OxygenMeterSystem,
-            DiveCompleteUI,
-            MoneyMeterSystem
-        };
+        GameConfig config = GameManager.Instance.Config;
+        GameSession session = GameManager.Instance.Session;
 
-        UpdateConfig(ConfigManager.Instance);
+        // Apply Configurations
+        TargetAreaSystem.ApplyConfig(config);
+        OxygenMeterSystem.ApplyConfig(config);
+        DiveCompleteUI.ApplyConfig(config);
+
+        // Bind logic to UI
+        OxygenMeterSystem.Bind(session);
+        MoneyMeterSystem.Bind(session);
+        
+        // Initial setup calls so UI starts with correct values
+        MoneyMeterSystem.ForceUpdate(session.CurrentMoney);
+        OxygenMeterSystem.ForceUpdate(session.CurrentOxygen, 1f);
+
+        DiveCompleteUI.Hide();
     }
 
     protected override void Subscribe()
     {
         InputManager.Instance.OnMouseMove += TargetAreaFollowMouse;
-        ConfigManager.Instance.OnConfigChanged += UpdateConfig;
-    }
-
-    private void UpdateConfig(ConfigManager Config)
-    {
-        Array.ForEach(ConfigInitializables, C => C.Initialize(Config));
     }
 
     protected override void Unsubscribe()
     {
-        InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;   
+        if (InputManager.Instance != null)
+            InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;
+            
+        if (GameManager.Instance != null && GameManager.Instance.Session != null)
+        {
+            OxygenMeterSystem.Unbind(GameManager.Instance.Session);
+            MoneyMeterSystem.Unbind(GameManager.Instance.Session);
+        }
     }
 
     private void TargetAreaFollowMouse(Vector2 vector)

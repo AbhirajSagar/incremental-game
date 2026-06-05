@@ -1,18 +1,26 @@
 using System;
-using DG.Tweening;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 [Serializable]
-public class DiveCompleteScreen : IConfigInitializable, IUiScreen
+public class DiveCompleteScreen : IUiScreen, IConfigurable
 {
     public GameObject Root;
+    public Button ContinueButton;
 
-    public void Hide()
+    public void ApplyConfig(GameConfig config)
     {
-        Root.SetActive(false);
+        ContinueButton.onClick.RemoveAllListeners();
+        ContinueButton.onClick.AddListener(Reload);
     }
 
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    private void Reload()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void Hide()
     {
         Root.SetActive(false);
     }

@@ -1,0 +1,953 @@
+
+-------------------------------------------------- DAMAGENUMBER.CS --------------------------------------------------
+
+using System;
+using DG.Tweening;
+using TMPro;
+using UnityEngine;
+
+public class DamageNumber : MonoBehaviour
+{
+    public TextMeshPro Label;
+    public float DelayInFade = 0.2f;
+    public MinMax<float> AnimationDuration;
+    public MinMax<Vector3> AnimationDistance;
+
+    private void OnEnable()
+    {
+        Label.enabled = false;
+    }
+
+    public void Initialize(float damage)
+    {
+        Label.text = ((int) damage).ToString();
+        CameraManager.AlwaysFaceCamera.Add(transform);
+        Label.enabled = true;
+
+        float animDuration = AnimationDuration.GetRandomValue();
+        Vector3 TargetPos = transform.position + AnimationDistance.GetRandomValue();
+
+        transform.DOMove(TargetPos, animDuration); 
+        Label.DOFade(0, animDuration).SetDelay(DelayInFade);
+    }
+
+    private void OnDestroy()
+    {
+        CameraManager.AlwaysFaceCamera.Remove(transform);
+    }
+}
+
+
+-------------------------------------------------- FISH.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using DG.Tweening;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class Fish : MonoBehaviour, IClickable
+{
+    public static List<Fish> AllFishes = new();
+    [Range(1f, 100f)] public float Speed = 1f;
+    [Range(0f, 500f)] public int Health;
+    [Range(0, 1000)] public int SellingPrice = 1;
+
+    [Header("REFERENCES")]
+    public Canvas HealthbarUICanvas;
+    public Image HealthbarFill;
+    public ParticleSystem DeathEffect;
+    public GameObject Graphics;
+
+    [Header("ANIMATION SETTINGS")]
+    public float AnimationDuration = 0.5f;
+    public Vector3 SquishStretchAmount = new Vector3(0.3f, -0.3f, 0.3f);
+    public float AutoHideHealthbarDuration = 2f;
+
+    [Header("EFFECTS")]
+    public ParticleSystem ClickSplashEffect;
+
+    private float CurHealth;
+    private Vector3? TargetPos;
+    private float DurationToReachTarget;
+
+    private Vector3 originalScale;
+    private Tween hitTween;
+    private Tween healthbarTween;
+    private float LastDamagedTime;
+    private bool IsHealthbarVisible;
+    private FISH_STATE FishState = FISH_STATE.ALIVE;
+
+    private void Start()
+    {
+        AllFishes.Add(this);
+
+
+        originalScale = transform.localScale;
+        HealthbarUICanvas.worldCamera = Camera.main;
+        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
+
+        CurHealth = Health;
+        HealthbarFill.fillAmount = 1f;
+
+        HealthbarUICanvas.transform.localScale = Vector3.zero;
+        IsHealthbarVisible = false;
+    }
+
+    private void Update()
+    {
+        if (TargetPos != null) transform.LookAt(TargetPos.Value);
+        if (IsHealthbarVisible && Time.time - LastDamagedTime >= AutoHideHealthbarDuration)
+        {
+            IsHealthbarVisible = false;
+            healthbarTween?.Kill();
+            healthbarTween = HealthbarUICanvas.transform.DOScale(Vector3.zero, 0.2f).SetEase(Ease.InBack).SetLink(gameObject);
+        }
+    }
+
+    public void SetTargetPos(Vector3 pos)
+    {
+        TargetPos = pos;
+        DurationToReachTarget = Vector3.Distance(transform.position, TargetPos.Value) / Speed;
+        transform.DOMove(TargetPos.Value, DurationToReachTarget).SetEase(Ease.Linear).SetLink(gameObject);
+    }
+
+    public void OnClick()
+    {
+        if(FishState != FISH_STATE.ALIVE) return;
+
+        Damage();
+        LastDamagedTime = Time.time;
+
+        if (!IsHealthbarVisible)
+        {
+            IsHealthbarVisible = true;
+            healthbarTween?.Kill();
+            healthbarTween = HealthbarUICanvas.transform.DOScale(Vector3.one, 0.2f).SetEase(Ease.OutBounce).SetLink(gameObject);
+        }
+    }
+
+    private void Damage()
+    {
+        ClickSplashEffect.Play();
+        CameraManager.Instance.TriggerCameraShake(CAMERA_SHAKE.FISH_DAMAGE);
+
+        hitTween?.Kill();
+        transform.localScale = originalScale;
+        hitTween = transform.DOShakeScale(0.5f, AnimationDuration, 10, 1f).SetLink(gameObject);
+
+        CurHealth = Mathf.Max(CurHealth - ConfigManager.Instance.Damage, 0);
+        HealthbarFill.fillAmount = CurHealth / Health;
+        DamageNumbersGenerator.CreateDamageNumber(transform.position, ConfigManager.Instance.Damage);
+
+        if (CurHealth == 0)
+        {
+            Death();
+        }
+    }
+
+    private void Death()
+    {
+        FishState = FISH_STATE.DEAD;
+
+        hitTween?.Kill();
+        healthbarTween?.Kill();
+
+        Graphics.SetActive(false);
+        HealthbarUICanvas.gameObject.SetActive(false);
+        
+        DeathEffect.transform.SetParent(null, true);
+        DeathEffect.Play();
+
+        ConfigManager.Instance.FishSold(SellingPrice);
+        Destroy(gameObject, 1f);
+    }
+
+    private void OnDestroy()
+    {
+        AllFishes.Remove(this);
+        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
+    }
+
+    public void OxygenFinishedDespawn()
+    {
+        transform.DOKill();
+        healthbarTween.Kill();
+        healthbarTween.Kill();
+        transform.DOScale(Vector3.zero, 0.1f).SetEase(Ease.InBounce).OnComplete(() => Destroy(gameObject));
+    }
+}
+
+-------------------------------------------------- ICLICKABLE.CS --------------------------------------------------
+
+public interface IClickable
+{
+    void OnClick();
+}
+
+-------------------------------------------------- ICONFIGINITIALIZABLE.CS --------------------------------------------------
+
+public interface IConfigInitializable
+{
+    void Initialize(ConfigManager Config, bool IsUpdate = true);
+}
+
+-------------------------------------------------- IUISCREEN.CS --------------------------------------------------
+
+using UnityEngine;
+
+public interface IUiScreen
+{
+    void Show();
+    void Hide();
+}
+
+-------------------------------------------------- SINGLETON.CS --------------------------------------------------
+
+using UnityEngine;
+public abstract class Singleton<T> : MonoBehaviour where T : Singleton<T>
+{
+    private static T _instance;
+
+    public static T Instance
+    {
+        get
+        {
+            _instance ??= FindAnyObjectByType<T>();
+            return _instance;
+        }
+    }
+
+    protected virtual void Awake()
+    {
+        if (_instance != null && _instance != this)
+        {
+            Destroy(gameObject);
+        }
+        else
+        {
+            _instance = this as T;
+        }
+    }
+
+    protected virtual void Subscribe()
+    {
+        
+    }
+    protected virtual void Unsubscribe()
+    {
+        
+    }
+
+    protected virtual void OnDestroy()
+    {
+        Unsubscribe();
+    }
+
+    protected virtual void OnDisable()
+    {
+        Unsubscribe();
+    }
+
+    protected virtual void OnEnable()
+    {
+        Subscribe();
+    }
+}
+
+-------------------------------------------------- CAMERAMANAGER.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using DG.Tweening;
+using UnityEngine;
+
+public class CameraManager : Singleton<CameraManager>
+{
+    public static List<Transform> AlwaysFaceCamera = new();
+
+    public Camera MainCamera;
+    public SerializableDictionary<CAMERA_SHAKE, CameraShakeSettings> CameraShakeSettings;
+
+    
+    private bool IsShaking = false;
+    private CAMERA_SHAKE CurrentShakeType = CAMERA_SHAKE.NONE;
+
+    private void LateUpdate()
+    {
+        for(int i = 0; i < AlwaysFaceCamera.Count; i++)
+        {
+            AlwaysFaceCamera[i].rotation = MainCamera.transform.rotation;
+        }
+    }
+
+    public void TriggerCameraShake(CAMERA_SHAKE ShakeType)
+    {
+        if(ShakeType == CAMERA_SHAKE.NONE) return;
+        if(IsShaking)
+        {
+            if(ShakeType <= CurrentShakeType)
+            {
+                return;
+            }
+            else
+            {
+                MainCamera.DOComplete();
+            }
+        }
+
+        if (CameraShakeSettings.TryGetValue(ShakeType, out CameraShakeSettings settings))
+        {
+            MainCamera.DOShakePosition(settings.Duration, settings.Strength).SetLink(gameObject).OnComplete(() =>
+            {
+                IsShaking = false;
+                CurrentShakeType = CAMERA_SHAKE.NONE;
+            });
+            IsShaking = true;
+            CurrentShakeType = ShakeType;
+        }
+    }
+}
+
+-------------------------------------------------- CONFIGMANAGER.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+public class ConfigManager: Singleton<ConfigManager>
+{
+    [Range(1,15)]
+    public float AttackRadius = 1;
+    public float Damage = 1;
+    public int Oxygen = 100;
+    public float UnitOxygenDeductionDuration = 1;
+    public int Money = 5;
+
+    public Action<ConfigManager> OnConfigChanged;
+
+    public void FishSold(int sellingPrice)
+    {
+        Money += sellingPrice;
+        OnConfigChanged?.Invoke(this);
+    }
+
+    private void Start()
+    {
+        OnConfigChanged?.Invoke(this);
+    }
+}
+
+-------------------------------------------------- EVENTMANAGER.CS --------------------------------------------------
+
+using System;
+
+public class EventManager
+{
+    public static void Initialize()
+    {
+        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += DespawnFishes;
+        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += ShowDiveCompleteUI;
+    }
+
+    private static void ShowDiveCompleteUI()
+    {
+        UIManager.Instance.ShowDiveCompleteScreen();
+    }
+
+    private static void DespawnFishes()
+    {
+        Fish.AllFishes.ForEach(F => F.OxygenFinishedDespawn());
+    }
+}
+
+-------------------------------------------------- FISHSPAWNMANAGER.CS --------------------------------------------------
+
+using System;
+using System.Linq;
+using UnityEngine;
+
+public class FishSpawnManager : Singleton<FishSpawnManager>
+{
+    [Header("BOUNDS")]
+    public Bounds SpawnBounds;
+    public Bounds[] SpawnBoundsArray;
+
+    [Header("SPAWN SETTINGS")]
+    public float SpawnInterval = 1f;
+    public MinMax<int> InitialSpawnCount = new MinMax<int>(8, 24);
+
+    [Header("REFERENCES")]
+    public Fish FishPrefab;
+
+    protected override void Awake()
+    {
+        base.Awake();
+        InitialFishSpawning();
+        InvokeRepeating(nameof(SpawnFish), SpawnInterval, SpawnInterval);
+    }
+
+    private void InitialFishSpawning()
+    {
+        for (int i = 0; i < InitialSpawnCount.GetRandomValue(); i++)
+        {
+            Fish FishInstance = SpawnFishInBounds(SpawnBounds);
+            Bounds FarthestBound = SpawnBoundsArray.OrderByDescending(bounds => bounds.DistanceFrom(FishInstance.transform.position)).First();
+            SetTargetPosFromBounds(FishInstance, FarthestBound);
+        }
+    }
+
+    private void SpawnFish()
+    {
+        int index = UnityEngine.Random.Range(0, SpawnBoundsArray.Length);
+
+        Fish FishInstance = SpawnFishInBounds(SpawnBoundsArray[index]);
+        index = index == 0 ? 1 : 0;
+
+        SetTargetPosFromBounds(FishInstance, SpawnBoundsArray[index]);
+    }
+
+    private Fish SpawnFishInBounds(Bounds bounds)
+    {
+        Vector3 RandomSpawnPos = bounds.GetRandomPos();
+        Fish FishInstance = Instantiate(FishPrefab, transform.position + RandomSpawnPos, Quaternion.identity);
+
+        return FishInstance;
+    }
+
+    private void SetTargetPosFromBounds(Fish fish, Bounds bounds)
+    {
+        Vector3 RandomTargetPos = bounds.GetRandomPos();
+        fish.SetTargetPos(transform.position + RandomTargetPos);
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireCube(transform.position + SpawnBounds.Offset, SpawnBounds.Size);
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[0].Offset, SpawnBoundsArray[0].Size);
+
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[1].Offset, SpawnBoundsArray[1].Size);
+    }
+}
+
+
+-------------------------------------------------- GAMEMANAGER.CS --------------------------------------------------
+
+public class GameManager : Singleton<GameManager>
+{
+    protected override void Awake()
+    {
+        base.Awake();
+        EventManager.Initialize();
+    }
+
+    private void Start()
+    {
+        
+    }
+}
+
+-------------------------------------------------- INPUTMANAGER.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+public class InputManager : Singleton<InputManager>
+{
+    public bool IsInputEnabled = true;
+    public LayerMask DetectLayer;
+    private Vector3 HitPoint = Vector3.zero;
+
+    public Action<Vector2> OnMouseMove;
+
+    protected override void Awake()
+    {
+        base.Awake();
+        Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Confined;
+    }
+
+    private void Start()
+    {
+        
+    }
+
+    private void Update()
+    {
+        Vector2 MousePos = Mouse.current.position.ReadValue();
+        OnMouseMove?.Invoke(MousePos);
+
+        if (Physics.Raycast(Camera.main.ScreenPointToRay(MousePos), out RaycastHit hit))
+        {
+            HitPoint = hit.point;
+        }
+
+        if (!IsInputEnabled) return;
+        if (!Mouse.current.leftButton.wasPressedThisFrame) return;
+
+        Collider[] insideDetection = new Collider[30];
+        int hitCount = Physics.OverlapSphereNonAlloc(hit.point, ConfigManager.Instance.AttackRadius, insideDetection, DetectLayer);
+
+        for (int i = 0; i < hitCount; i++)
+        {
+            if (insideDetection[i].TryGetComponent(out IClickable clickable))
+                clickable.OnClick();
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!Application.isPlaying || ConfigManager.Instance == null) return;
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(HitPoint, ConfigManager.Instance.AttackRadius);
+    }
+}
+
+-------------------------------------------------- UIMANAGER.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+public class UIManager : Singleton<UIManager>
+{
+    public TargetAreaElement TargetAreaSystem;
+    public OxygenMeter OxygenMeterSystem;
+    public MoneyMeter MoneyMeterSystem;
+
+    [Header("UI")]
+    public DiveCompleteScreen DiveCompleteUI;
+    private IConfigInitializable[] ConfigInitializables;
+
+    private void Start()
+    {
+        ConfigInitializables = new IConfigInitializable[] 
+        { 
+            TargetAreaSystem,
+            OxygenMeterSystem,
+            DiveCompleteUI,
+            MoneyMeterSystem
+        };
+
+        UpdateConfig(ConfigManager.Instance);
+    }
+
+    protected override void Subscribe()
+    {
+        InputManager.Instance.OnMouseMove += TargetAreaFollowMouse;
+        ConfigManager.Instance.OnConfigChanged += UpdateConfig;
+    }
+
+    private void UpdateConfig(ConfigManager Config)
+    {
+        Array.ForEach(ConfigInitializables, C => C.Initialize(Config));
+    }
+
+    protected override void Unsubscribe()
+    {
+        InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;   
+    }
+
+    private void TargetAreaFollowMouse(Vector2 vector)
+    {
+        TargetAreaSystem.Position = vector;
+    }
+
+    public void ShowDiveCompleteScreen()
+    {
+        DiveCompleteUI.Show();
+    }
+}
+
+-------------------------------------------------- BOUNDS.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+[Serializable]
+public class Bounds
+{
+    public Vector3 Size;
+    public Vector3 Offset;
+
+    public Vector3 GetRandomPos()
+    {
+        return new Vector3(
+            UnityEngine.Random.Range(-Size.x / 2f, Size.x / 2f),
+            UnityEngine.Random.Range(-Size.y / 2f, Size.y / 2f),
+            UnityEngine.Random.Range(-Size.z / 2f, Size.z / 2f)
+        ) + Offset;
+    }
+
+    public float DistanceFrom(Vector3 position)
+    {
+        return Vector3.Distance(position, Offset);
+    }
+}
+
+
+-------------------------------------------------- CAMERASHAKESETTINGS.CS --------------------------------------------------
+
+using System;
+
+[Serializable]
+public class CameraShakeSettings
+{
+    public float Strength;
+    public float Duration;
+
+    public CameraShakeSettings(float strength, float duration)
+    {
+        Strength = strength;
+        Duration = duration;
+    }
+}
+
+-------------------------------------------------- CLICKERBUTTON.CS --------------------------------------------------
+
+using DG.Tweening;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
+
+public class ClickerButton : Button
+{
+    private RectTransform Shadow;
+    private RectTransform Graphics;
+
+    [SerializeField] private float PressDuration = 0.05f;
+
+    protected override void Awake()
+    {
+        base.Awake();
+
+        Shadow = transform.GetChild(0).GetComponent<RectTransform>();
+        Graphics = transform.GetChild(1).GetComponent<RectTransform>();
+    }
+
+    public override void OnPointerDown(PointerEventData eventData)
+    {
+        base.OnPointerDown(eventData);
+
+        Graphics.DOKill();
+        Graphics.DOAnchorPos(Shadow.anchoredPosition, PressDuration)
+            .SetUpdate(true);
+    }
+
+    public override void OnPointerUp(PointerEventData eventData)
+    {
+        base.OnPointerUp(eventData);
+
+        Graphics.DOKill();
+        Graphics.DOAnchorPos(Vector2.zero, PressDuration)
+            .SetUpdate(true);
+    }
+}
+
+-------------------------------------------------- DAMAGENUMBERSGENERATOR.CS --------------------------------------------------
+
+using UnityEngine;
+
+public static class DamageNumbersGenerator
+{
+    public static Transform CreateDamageNumber(Vector3 position, float damage)
+    {
+        DamageNumber Prefab = Resources.Load<DamageNumber>(nameof(DamageNumber));
+        DamageNumber Clone = Object.Instantiate(Prefab, position, Quaternion.identity);
+        Clone.Initialize(damage);
+        
+        return Clone.transform;
+    }
+}
+
+-------------------------------------------------- DIVECOMPLETESCREEN.CS --------------------------------------------------
+
+using System;
+using DG.Tweening;
+using UnityEngine;
+
+[Serializable]
+public class DiveCompleteScreen : IConfigInitializable, IUiScreen
+{
+    public GameObject Root;
+
+    public void Hide()
+    {
+        Root.SetActive(false);
+    }
+
+    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    {
+        Root.SetActive(false);
+    }
+
+    public void Show()
+    {
+        Root.SetActive(true);
+    }
+}
+
+-------------------------------------------------- GAMEENUMS.CS --------------------------------------------------
+
+public enum CAMERA_SHAKE
+{
+    NONE,
+    FISH_DAMAGE,
+    MEDIUM,
+    HEAVY,
+    SUPER_HEAVY
+}
+
+public enum FISH_STATE
+{
+    ALIVE,
+    DEAD,
+}
+
+-------------------------------------------------- MINMAX.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+[Serializable]
+public class MinMax<T> where T : struct
+{
+    public T Min;
+    public T Max;
+
+    public MinMax(T min, T max)
+    {
+        Min = min;
+        Max = max;
+    }
+
+    public T GetRandomValue()
+    {
+        if (typeof(T) == typeof(int))
+        {
+            int minValue = Convert.ToInt32(Min);
+            int maxValue = Convert.ToInt32(Max);
+            return (T)(object)UnityEngine.Random.Range(minValue, maxValue + 1);
+        }
+        else if (typeof(T) == typeof(float))
+        {
+            float minValue = Convert.ToSingle(Min);
+            float maxValue = Convert.ToSingle(Max);
+            return (T)(object)UnityEngine.Random.Range(minValue, maxValue);
+        }
+        else if(typeof(T) == typeof(Vector3))
+        {
+            Vector3 minValue = (Vector3)(object)Min;
+            Vector3 maxValue = (Vector3)(object)Max;
+            Vector3 randomValue = new Vector3
+            (
+                UnityEngine.Random.Range(minValue.x, maxValue.x),
+                UnityEngine.Random.Range(minValue.y, maxValue.y),
+                UnityEngine.Random.Range(minValue.z, maxValue.z)
+            );
+            
+            return (T)(object)randomValue;
+        }
+        else
+        {
+            throw new InvalidOperationException("Unsupported type for MinMax. Only int, float and Vector3 are supported.");
+        }
+    }
+}
+
+-------------------------------------------------- MONEYMETER.CS --------------------------------------------------
+
+using System;
+using TMPro;
+
+[Serializable]
+public class MoneyMeter : IConfigInitializable
+{
+    public TextMeshProUGUI Label;
+    private int CurrentMoney
+    {
+        set
+        {
+            _CurMoney = value;
+            Label.text = $"${value}";
+        }
+
+        get => _CurMoney;
+    }
+
+    private int _CurMoney;
+
+    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    {
+        CurrentMoney = Config.Money;
+    }
+}
+
+-------------------------------------------------- OXYGENMETER.CS --------------------------------------------------
+
+using System;
+using DG.Tweening;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+[Serializable]
+public class OxygenMeter : IConfigInitializable
+{
+    public Image FillAmount;
+    public RectTransform FillSlider;
+    public TextMeshProUGUI Label;
+
+    public float SlideWidthAdjust = 2.56f;
+    private int CurrentOxygen
+    {
+        get => _CurrentOxygen;
+        set
+        {
+            _CurrentOxygen = value;
+            FillAmount.fillAmount = (float) CurrentOxygen / MaxOxygen;    
+        }
+    }
+
+    private int _CurrentOxygen;
+    private int MaxOxygen = -1;
+    private bool CanDecreaseOxygen = false;
+    private Tween OxygenDeductTween;
+    private float UnitOxygenDeductionDuration = 1f;
+
+    public event Action OnOxygenFinished;
+
+    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    {
+        MaxOxygen = CurrentOxygen = Config.Oxygen;
+        UnitOxygenDeductionDuration = Config.UnitOxygenDeductionDuration;
+        FillAmount.fillAmount = 1;
+
+        FillSlider.sizeDelta = new Vector2(Config.Oxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
+
+        CanDecreaseOxygen = true;
+        
+        OxygenDeductTween?.Kill();
+        OxygenDeductTween = null;
+        OxygenDeductTween = DOVirtual.DelayedCall(UnitOxygenDeductionDuration, () => DeductOxygen()).SetLoops(-1, LoopType.Restart);
+    }
+
+    private void DeductOxygen()
+    {
+        CurrentOxygen = Math.Max(0, CurrentOxygen - 1);
+        if(CurrentOxygen != 0) return;
+        Label.text = $"{CurrentOxygen/MaxOxygen}";
+
+        OnOxygenFinished?.Invoke();
+    }
+}
+
+-------------------------------------------------- SERIALIZABLEDICTIONARY.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+[Serializable]
+public class SerializableKeyValuePair<K, T>
+{
+    public K Key;
+    public T Value;
+
+    public SerializableKeyValuePair(K key, T value)
+    {
+        Key = key;
+        Value = value;
+    }
+}
+
+[Serializable]
+public class SerializableDictionary<K, T>
+{
+    public List<SerializableKeyValuePair<K, T>> Pairs = new List<SerializableKeyValuePair<K, T>>();
+
+    public T this[K key]
+    {
+        get
+        {
+            var pair = Pairs.Find(p => EqualityComparer<K>.Default.Equals(p.Key, key));
+            return pair != null ? pair.Value : default;
+        }
+        set
+        {
+            var pair = Pairs.Find(p => EqualityComparer<K>.Default.Equals(p.Key, key));
+
+            if (pair != null)
+            {
+                pair.Value = value;
+            }
+            else
+            {
+                Pairs.Add(new SerializableKeyValuePair<K, T>(key, value));
+            }
+        }
+    }
+
+    public bool ContainsKey(K key)
+    {
+        return Pairs.Exists(p => EqualityComparer<K>.Default.Equals(p.Key, key));
+    }
+
+    public void Remove(K key)
+    {
+        Pairs.RemoveAll(p => EqualityComparer<K>.Default.Equals(p.Key, key));
+    }   
+
+    public bool TryGetValue(K key, out T value)
+    {
+        var pair = Pairs.Find(p => EqualityComparer<K>.Default.Equals(p.Key, key));
+        if (pair != null)
+        {
+            value = pair.Value;
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    public void Clear()
+    {
+        Pairs.Clear();
+    }
+
+    public List<K> Keys => Pairs.ConvertAll(p => p.Key);
+    public List<T> Values => Pairs.ConvertAll(p => p.Value);
+
+    public int Count => Pairs.Count;
+}
+
+-------------------------------------------------- TARGETAREAELEMENT.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+[Serializable]
+public class TargetAreaElement : IConfigInitializable
+{
+    public RectTransform Ring;
+    public Material RingProceduralMaterial;
+    public float RingRadiusAdjust = 0.5f;
+
+    public Vector2 Position 
+    { 
+        get => Ring.position;
+        set
+        {
+            Ring.position = value;
+        }
+    }
+
+    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    {
+        RingProceduralMaterial.SetFloat("_Radius", Config.AttackRadius * RingRadiusAdjust);
+    }
+}

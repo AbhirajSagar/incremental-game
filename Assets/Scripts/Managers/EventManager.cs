@@ -1,20 +1,21 @@
-using System;
-
-public class EventManager
+public static class EventManager
 {
     public static void Initialize()
     {
-        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += DespawnFishes;
-        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += ShowDiveCompleteUI;
+        // Bind core game events
+        GameManager.Instance.Session.OnOxygenDepleted += HandleOxygenDepleted;
     }
 
-    private static void ShowDiveCompleteUI()
+    private static void HandleOxygenDepleted()
     {
+        GameManager.Instance.EndGame();
+        
+        // Despawn fishes safely
+        for (int i = Fish.AllFishes.Count - 1; i >= 0; i--)
+        {
+            Fish.AllFishes[i].OxygenFinishedDespawn();
+        }
+
         UIManager.Instance.ShowDiveCompleteScreen();
-    }
-
-    private static void DespawnFishes()
-    {
-        Fish.AllFishes.ForEach(F => F.OxygenFinishedDespawn());
     }
 }
