@@ -1,5 +1,6 @@
 using System;
 using DG.Tweening;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,6 +9,7 @@ public class OxygenMeter : IConfigInitializable
 {
     public Image FillAmount;
     public RectTransform FillSlider;
+    public TextMeshProUGUI Label;
 
     public float SlideWidthAdjust = 2.56f;
     private int CurrentOxygen
@@ -35,6 +37,7 @@ public class OxygenMeter : IConfigInitializable
         FillAmount.fillAmount = 1;
 
         FillSlider.sizeDelta = new Vector2(Config.Oxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
+
         CanDecreaseOxygen = true;
         
         OxygenDeductTween?.Kill();
@@ -44,9 +47,9 @@ public class OxygenMeter : IConfigInitializable
 
     private void DeductOxygen()
     {
-        Debug.Log("Deducting oxygen...");
         CurrentOxygen = Math.Max(0, CurrentOxygen - 1);
         if(CurrentOxygen != 0) return;
+        Label.text = $"{CurrentOxygen/MaxOxygen}";
 
         OnOxygenFinished?.Invoke();
     }

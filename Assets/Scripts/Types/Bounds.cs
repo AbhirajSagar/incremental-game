@@ -15,4 +15,9 @@ public class Bounds
             UnityEngine.Random.Range(-Size.z / 2f, Size.z / 2f)
         ) + Offset;
     }
+
+    public float DistanceFrom(Vector3 position)
+    {
+        return Vector3.Distance(position, Offset);
+    }
 }

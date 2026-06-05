@@ -14,6 +14,12 @@ public class InputManager : Singleton<InputManager>
     {
         base.Awake();
         Cursor.visible = false;
+        Cursor.lockState = CursorLockMode.Confined;
+    }
+
+    private void Start()
+    {
+        
     }
 
     private void Update()

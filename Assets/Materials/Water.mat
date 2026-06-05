@@ -55,14 +55,14 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Depth: 0.5
+    - _Depth: 41.34
     - _QueueControl: 0
     - _QueueOffset: 0
     - _Scroll: 0.2
     m_Colors:
-    - _Color_A: {r: 0, g: 0.64095086, b: 0.9924528, a: 1}
-    - _Color_B: {r: 0, g: 0.5428772, b: 1, a: 1}
-    - _Scroll_1: {r: 0.1, g: 0.1, b: 0, a: 0}
-    - _Tiling: {r: 13.3, g: 7.7, b: 0, a: 0}
+    - _Color_A: {r: 0.073584795, g: 0.67060804, b: 1, a: 1}
+    - _Color_B: {r: 0.058490515, g: 0.5680135, b: 1, a: 1}
+    - _Scroll_1: {r: 1.33, g: 0.1, b: 0, a: 0}
+    - _Tiling: {r: 16.01, g: 10.9, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

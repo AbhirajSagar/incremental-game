@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using DG.Tweening;
-using DG.Tweening.Core;
-using DG.Tweening.Plugins.Options;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,6 +9,7 @@ public class Fish : MonoBehaviour, IClickable
     public static List<Fish> AllFishes = new();
     [Range(1f, 100f)] public float Speed = 1f;
     [Range(0f, 500f)] public int Health;
+    [Range(0, 1000)] public int SellingPrice = 1;
 
     [Header("REFERENCES")]
     public Canvas HealthbarUICanvas;
@@ -40,6 +39,7 @@ public class Fish : MonoBehaviour, IClickable
     private void Start()
     {
         AllFishes.Add(this);
+
 
         originalScale = transform.localScale;
         HealthbarUICanvas.worldCamera = Camera.main;
@@ -116,6 +116,8 @@ public class Fish : MonoBehaviour, IClickable
         
         DeathEffect.transform.SetParent(null, true);
         DeathEffect.Play();
+
+        ConfigManager.Instance.FishSold(SellingPrice);
         Destroy(gameObject, 1f);
     }
 
@@ -123,5 +125,13 @@ public class Fish : MonoBehaviour, IClickable
     {
         AllFishes.Remove(this);
         CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
+    }
+
+    public void OxygenFinishedDespawn()
+    {
+        transform.DOKill();
+        healthbarTween.Kill();
+        healthbarTween.Kill();
+        transform.DOScale(Vector3.zero, 0.1f).SetEase(Ease.InBounce).OnComplete(() => Destroy(gameObject));
     }
 }

@@ -8,8 +8,15 @@ public class ConfigManager: Singleton<ConfigManager>
     public float Damage = 1;
     public int Oxygen = 100;
     public float UnitOxygenDeductionDuration = 1;
+    public int Money = 5;
 
     public Action<ConfigManager> OnConfigChanged;
+
+    public void FishSold(int sellingPrice)
+    {
+        Money += sellingPrice;
+        OnConfigChanged?.Invoke(this);
+    }
 
     private void Start()
     {

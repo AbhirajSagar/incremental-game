@@ -5,7 +5,10 @@ public class UIManager : Singleton<UIManager>
 {
     public TargetAreaElement TargetAreaSystem;
     public OxygenMeter OxygenMeterSystem;
+    public MoneyMeter MoneyMeterSystem;
 
+    [Header("UI")]
+    public DiveCompleteScreen DiveCompleteUI;
     private IConfigInitializable[] ConfigInitializables;
 
     private void Start()
@@ -13,7 +16,9 @@ public class UIManager : Singleton<UIManager>
         ConfigInitializables = new IConfigInitializable[] 
         { 
             TargetAreaSystem,
-            OxygenMeterSystem
+            OxygenMeterSystem,
+            DiveCompleteUI,
+            MoneyMeterSystem
         };
 
         UpdateConfig(ConfigManager.Instance);
@@ -38,5 +43,10 @@ public class UIManager : Singleton<UIManager>
     private void TargetAreaFollowMouse(Vector2 vector)
     {
         TargetAreaSystem.Position = vector;
+    }
+
+    public void ShowDiveCompleteScreen()
+    {
+        DiveCompleteUI.Show();
     }
 }
