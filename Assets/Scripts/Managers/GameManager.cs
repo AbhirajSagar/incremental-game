@@ -24,6 +24,11 @@ public class GameManager : Singleton<GameManager>
         isGameActive = true;
     }
 
+    public void Start()
+    {
+        UpgradeManager.Instance.Initialize();
+    }
+
     private void Update()
     {
         if (!isGameActive || Session.CurrentOxygen <= 0) return;

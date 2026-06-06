@@ -1,23 +1,30 @@
 using System;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
-public enum STAT_TYPE
+[Serializable]
+public class TooltipDisplayData
 {
-    ATTACK_RADIUS_INCREASE,
-    DAMAGE_INCREASE
+    public string Title;
+    [Space(5)]
+    [TextArea(3,10)]
+    public string Description;
+    [Space(5)]
+    public string Property;
+    [Space(5)]
+    public string Change;
 }
-
 
 [CreateAssetMenu(fileName = "UpgradeData", menuName = "Settings/New Upgrade")]
 public class UpgradeData : ScriptableObject
 {
     public string Id = "";
-    public STAT_TYPE statType;
     public int Value;
     public int Price;
     public Sprite Icon;
-    public string Description;
+    public TooltipDisplayData TooltipData;
+    public UnityEvent OnApply;
     
 
     [ContextMenu("Generate Id")]

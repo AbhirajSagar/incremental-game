@@ -1,14 +1,23 @@
 using System;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 [Serializable]
 public class UpgradeTreeScreen : IUiScreen, IConfigurable
 {
     public GameObject Root;
+    public Button BackButton;
 
-    public void ApplyConfig(GameConfig config) { }
+    public void ApplyConfig(GameConfig config)
+    {
+        BackButton.onClick.RemoveAllListeners();
+        BackButton.onClick.AddListener(UIManager.Instance.ReturnToDiveCompleteScreen);
+    }
+
+    private void InitializeTreeUI(GameConfig config)
+    {
+        
+    }
 
     public void Hide()
     {

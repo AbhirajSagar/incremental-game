@@ -14,3 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::UpgradeData
   Id: 78b5974f3c854275b5979b1703a9e7fa
   statType: 0
+  Value: 0
+  Price: 0
+  Icon: {fileID: -5177388603050735206, guid: 51f0df9e6400c7d47a5e3fe1fd9cd073, type: 3}
+  Description: Description

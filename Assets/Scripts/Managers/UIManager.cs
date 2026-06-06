@@ -68,4 +68,10 @@ public class UIManager : Singleton<UIManager>
         DiveCompleteUI.Hide();
         UpgradeTreeUI.Show();
     }
+
+    public void ReturnToDiveCompleteScreen()
+    {
+        UpgradeTreeUI.Hide();
+        DiveCompleteUI.Show();
+    }
 }

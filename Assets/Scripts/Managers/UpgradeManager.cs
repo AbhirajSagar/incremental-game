@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
@@ -5,6 +6,21 @@ using UnityEngine;
 public class UpgradeManager : Singleton<UpgradeManager>
 {
     public UpgradeData[] Upgrades;
+    public UpgradeNode NodePrefab;
+    public RectTransform CanvasParent; 
+
+    public void Initialize()
+    {
+        CreateUpgradeTreeNodes();
+    }
+
+    private void CreateUpgradeTreeNodes()
+    {
+        foreach(var upgrade in Upgrades)
+        {
+            UpgradeNode node = Instantiate(NodePrefab, CanvasParent);
+        }
+    }
 
     public static void ApplyNodeOnSession(string NodeId, GameSession Session)
     {

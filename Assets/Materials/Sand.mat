@@ -60,8 +60,8 @@ Material:
     - _Strength: 0.09
     m_Colors:
     - _Color: {r: 1, g: 0.88226414, b: 0.6320754, a: 1}
-    - _Color_A: {r: 1, g: 0.76763046, b: 0.3830188, a: 1}
-    - _Color_B: {r: 1, g: 0.7839447, b: 0.435849, a: 1}
+    - _Color_A: {r: 1, g: 0.62402177, b: 0, a: 1}
+    - _Color_B: {r: 1, g: 0.76721174, b: 0.34528297, a: 1}
     - _SecondaryColor: {r: 1, g: 0.9792453, b: 0.9792453, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1

@@ -15,4 +15,4 @@ MonoBehaviour:
   AttackRadius: 1
   Damage: 1
   MaxOxygen: 100
-  UnitOxygenDeductionDuration: 0.1
+  UnitOxygenDeductionDuration: 60

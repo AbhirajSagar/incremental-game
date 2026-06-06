@@ -1,4 +1,5 @@
 using System;
+using DG.Tweening;
 using TMPro;
 
 [Serializable]
@@ -24,5 +25,7 @@ public class MoneyMeter : ISessionBindable
     private void OnMoneyChanged(int currentMoney)
     {
         Label.text = $"${currentMoney}";
+        Label.transform.DOComplete();
+        Label.transform.DOShakeScale(0.2f).SetLink(Label.gameObject);
     }
 }

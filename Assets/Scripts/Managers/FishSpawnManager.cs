@@ -24,6 +24,11 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
         InvokeRepeating(nameof(SpawnFish), SpawnInterval, SpawnInterval);
     }
 
+    public void StopSpawning()
+    {
+        CancelInvoke(nameof(SpawnFish));        
+    }
+
     private void InitialFishSpawning()
     {
         for (int i = 0; i < InitialSpawnCount.GetRandomValue(); i++)
