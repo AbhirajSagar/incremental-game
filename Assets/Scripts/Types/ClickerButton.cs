@@ -23,7 +23,7 @@ public class ClickerButton : Button
         base.OnPointerDown(eventData);
 
         Graphics.DOKill();
-        Graphics.DOAnchorPos(Shadow.anchoredPosition, PressDuration).SetUpdate(true);
+        Graphics.DOAnchorPos(Shadow.anchoredPosition, PressDuration).SetUpdate(true).SetLink(gameObject);
     }
 
     public override void OnPointerUp(PointerEventData eventData)
@@ -31,6 +31,6 @@ public class ClickerButton : Button
         base.OnPointerUp(eventData);
 
         Graphics.DOKill();
-        Graphics.DOAnchorPos(Vector2.zero, PressDuration).SetUpdate(true);
+        Graphics.DOAnchorPos(Vector2.zero, PressDuration).SetUpdate(true).SetLink(gameObject);
     }
 }

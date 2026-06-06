@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 public class UIManager : Singleton<UIManager>
@@ -5,9 +6,9 @@ public class UIManager : Singleton<UIManager>
     public TargetAreaElement TargetAreaSystem;
     public OxygenMeter OxygenMeterSystem;
     public MoneyMeter MoneyMeterSystem;
-
-    [Header("UI")]
     public DiveCompleteScreen DiveCompleteUI;
+    public UpgradeTreeScreen UpgradeTreeUI;
+    public CursorSystem CustomCursor;
 
     private void Start()
     {
@@ -18,6 +19,7 @@ public class UIManager : Singleton<UIManager>
         TargetAreaSystem.ApplyConfig(config);
         OxygenMeterSystem.ApplyConfig(config);
         DiveCompleteUI.ApplyConfig(config);
+        UpgradeTreeUI.ApplyConfig(config);
 
         // Bind logic to UI
         OxygenMeterSystem.Bind(session);
@@ -28,6 +30,8 @@ public class UIManager : Singleton<UIManager>
         OxygenMeterSystem.ForceUpdate(session.CurrentOxygen, 1f);
 
         DiveCompleteUI.Hide();
+        UpgradeTreeUI.Hide();
+        CustomCursor.Enabled = false;
     }
 
     protected override void Subscribe()
@@ -37,8 +41,10 @@ public class UIManager : Singleton<UIManager>
 
     protected override void Unsubscribe()
     {
-        if (InputManager.Instance != null)
+        if(InputManager.Instance != null)
+        {
             InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;
+        }
             
         if (GameManager.Instance != null && GameManager.Instance.Session != null)
         {
@@ -55,5 +61,11 @@ public class UIManager : Singleton<UIManager>
     public void ShowDiveCompleteScreen()
     {
         DiveCompleteUI.Show();
+    }
+
+    public void ShowUpgradeScreen()
+    {
+        DiveCompleteUI.Hide();
+        UpgradeTreeUI.Show();
     }
 }
