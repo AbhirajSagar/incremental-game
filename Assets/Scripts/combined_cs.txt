@@ -10,37 +10,45 @@ public class DamageNumber : MonoBehaviour
 {
     public TextMeshPro Label;
     public float DelayInFade = 0.2f;
-    public MinMax<float> AnimationDuration;
-    public MinMax<Vector3> AnimationDistance;
+    
+    public MinMaxFloat AnimationDuration;
+    public MinMaxVector3 AnimationDistance;
+
+    private Action<DamageNumber> onCompleteCallback;
 
     private void OnEnable()
     {
-        Label.enabled = false;
-    }
-
-    public void Initialize(float damage)
-    {
-        Label.text = ((int) damage).ToString();
         CameraManager.AlwaysFaceCamera.Add(transform);
-        Label.enabled = true;
-
-        float animDuration = AnimationDuration.GetRandomValue();
-        Vector3 TargetPos = transform.position + AnimationDistance.GetRandomValue();
-
-        transform.DOMove(TargetPos, animDuration); 
-        Label.DOFade(0, animDuration).SetDelay(DelayInFade);
     }
 
-    private void OnDestroy()
+    private void OnDisable()
     {
         CameraManager.AlwaysFaceCamera.Remove(transform);
     }
-}
 
+    public void Initialize(float damage, Action<DamageNumber> onComplete)
+    {
+        onCompleteCallback = onComplete;
+        Label.text = ((int)damage).ToString();
+        
+        // Reset label from previous pooled uses
+        Label.alpha = 1f;
+        
+        float animDuration = AnimationDuration.GetRandomValue();
+        Vector3 targetPos = transform.position + AnimationDistance.GetRandomValue();
+
+        transform.DOMove(targetPos, animDuration).SetLink(gameObject); 
+        Label.DOFade(0, animDuration).SetDelay(DelayInFade).SetLink(gameObject).OnComplete(Deactivate);
+    }
+
+    private void Deactivate()
+    {
+        onCompleteCallback?.Invoke(this);
+    }
+}
 
 -------------------------------------------------- FISH.CS --------------------------------------------------
 
-using System;
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
@@ -61,7 +69,6 @@ public class Fish : MonoBehaviour, IClickable
 
     [Header("ANIMATION SETTINGS")]
     public float AnimationDuration = 0.5f;
-    public Vector3 SquishStretchAmount = new Vector3(0.3f, -0.3f, 0.3f);
     public float AutoHideHealthbarDuration = 2f;
 
     [Header("EFFECTS")]
@@ -69,8 +76,7 @@ public class Fish : MonoBehaviour, IClickable
 
     private float CurHealth;
     private Vector3? TargetPos;
-    private float DurationToReachTarget;
-
+    
     private Vector3 originalScale;
     private Tween hitTween;
     private Tween healthbarTween;
@@ -82,11 +88,9 @@ public class Fish : MonoBehaviour, IClickable
     {
         AllFishes.Add(this);
 
-
         originalScale = transform.localScale;
         HealthbarUICanvas.worldCamera = Camera.main;
-        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
-
+        
         CurHealth = Health;
         HealthbarFill.fillAmount = 1f;
 
@@ -94,9 +98,26 @@ public class Fish : MonoBehaviour, IClickable
         IsHealthbarVisible = false;
     }
 
+    private void OnEnable()
+    {
+        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
+    }
+
+    private void OnDisable()
+    {
+        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
+    }
+
+    private void OnDestroy()
+    {
+        AllFishes.Remove(this);
+    }
+
     private void Update()
     {
-        if (TargetPos != null) transform.LookAt(TargetPos.Value);
+        if (TargetPos != null && FishState == FISH_STATE.ALIVE) 
+            transform.LookAt(TargetPos.Value);
+            
         if (IsHealthbarVisible && Time.time - LastDamagedTime >= AutoHideHealthbarDuration)
         {
             IsHealthbarVisible = false;
@@ -108,8 +129,8 @@ public class Fish : MonoBehaviour, IClickable
     public void SetTargetPos(Vector3 pos)
     {
         TargetPos = pos;
-        DurationToReachTarget = Vector3.Distance(transform.position, TargetPos.Value) / Speed;
-        transform.DOMove(TargetPos.Value, DurationToReachTarget).SetEase(Ease.Linear).SetLink(gameObject);
+        float durationToReachTarget = Vector3.Distance(transform.position, TargetPos.Value) / Speed;
+        transform.DOMove(TargetPos.Value, durationToReachTarget).SetEase(Ease.Linear).SetLink(gameObject);
     }
 
     public void OnClick()
@@ -136,20 +157,19 @@ public class Fish : MonoBehaviour, IClickable
         transform.localScale = originalScale;
         hitTween = transform.DOShakeScale(0.5f, AnimationDuration, 10, 1f).SetLink(gameObject);
 
-        CurHealth = Mathf.Max(CurHealth - ConfigManager.Instance.Damage, 0);
+        float damageAmount = GameManager.Session.State.BaseDamage;
+        CurHealth = Mathf.Max(CurHealth - damageAmount, 0);
         HealthbarFill.fillAmount = CurHealth / Health;
-        DamageNumbersGenerator.CreateDamageNumber(transform.position, ConfigManager.Instance.Damage);
+        
+        DamageNumbersGenerator.Instance.Spawn(transform.position, damageAmount);
 
-        if (CurHealth == 0)
-        {
-            Death();
-        }
+        if (CurHealth <= 0) Death();
     }
 
     private void Death()
     {
         FishState = FISH_STATE.DEAD;
-
+        transform.DOKill();
         hitTween?.Kill();
         healthbarTween?.Kill();
 
@@ -159,21 +179,18 @@ public class Fish : MonoBehaviour, IClickable
         DeathEffect.transform.SetParent(null, true);
         DeathEffect.Play();
 
-        ConfigManager.Instance.FishSold(SellingPrice);
+        GameManager.Session.AddMoney(SellingPrice);
         Destroy(gameObject, 1f);
-    }
-
-    private void OnDestroy()
-    {
-        AllFishes.Remove(this);
-        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
     }
 
     public void OxygenFinishedDespawn()
     {
+        if (FishState == FISH_STATE.DEAD) return;
+        FishState = FISH_STATE.DEAD;
+        
         transform.DOKill();
-        healthbarTween.Kill();
-        healthbarTween.Kill();
+        hitTween?.Kill();
+        healthbarTween?.Kill();
         transform.DOScale(Vector3.zero, 0.1f).SetEase(Ease.InBounce).OnComplete(() => Destroy(gameObject));
     }
 }
@@ -183,13 +200,6 @@ public class Fish : MonoBehaviour, IClickable
 public interface IClickable
 {
     void OnClick();
-}
-
--------------------------------------------------- ICONFIGINITIALIZABLE.CS --------------------------------------------------
-
-public interface IConfigInitializable
-{
-    void Initialize(ConfigManager Config, bool IsUpdate = true);
 }
 
 -------------------------------------------------- IUISCREEN.CS --------------------------------------------------
@@ -255,6 +265,19 @@ public abstract class Singleton<T> : MonoBehaviour where T : Singleton<T>
     }
 }
 
+-------------------------------------------------- UIINTERFACES.CS --------------------------------------------------
+
+public interface IConfigurable
+{
+    void ApplyConfig(GameConfig config);
+}
+
+public interface ISessionBindable
+{
+    void Bind(GameSession session);
+    void Unbind(GameSession session);
+}
+
 -------------------------------------------------- CAMERAMANAGER.CS --------------------------------------------------
 
 using System;
@@ -317,10 +340,6 @@ using UnityEngine;
 public class ConfigManager: Singleton<ConfigManager>
 {
     [Range(1,15)]
-    public float AttackRadius = 1;
-    public float Damage = 1;
-    public int Oxygen = 100;
-    public float UnitOxygenDeductionDuration = 1;
     public int Money = 5;
 
     public Action<ConfigManager> OnConfigChanged;
@@ -339,24 +358,27 @@ public class ConfigManager: Singleton<ConfigManager>
 
 -------------------------------------------------- EVENTMANAGER.CS --------------------------------------------------
 
-using System;
+using UnityEngine;
 
-public class EventManager
+public static class EventManager
 {
     public static void Initialize()
     {
-        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += DespawnFishes;
-        UIManager.Instance.OxygenMeterSystem.OnOxygenFinished += ShowDiveCompleteUI;
+        GameManager.Session.OnOxygenDepleted += HandleOxygenDepleted;
     }
 
-    private static void ShowDiveCompleteUI()
+    private static void HandleOxygenDepleted()
     {
+        GameManager.Instance.EndGame();
+        FishSpawnManager.Instance.StopSpawning();
+        UIManager.Instance.CustomCursor.Enabled = true;
+
+        for (int i = Fish.AllFishes.Count - 1; i >= 0; i--)
+        {
+            Fish.AllFishes[i].OxygenFinishedDespawn();
+        }
+
         UIManager.Instance.ShowDiveCompleteScreen();
-    }
-
-    private static void DespawnFishes()
-    {
-        Fish.AllFishes.ForEach(F => F.OxygenFinishedDespawn());
     }
 }
 
@@ -374,7 +396,9 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
 
     [Header("SPAWN SETTINGS")]
     public float SpawnInterval = 1f;
-    public MinMax<int> InitialSpawnCount = new MinMax<int>(8, 24);
+    
+    // UPDATED: Now uses the new struct for better performance!
+    public MinMaxInt InitialSpawnCount = new MinMaxInt { Min = 8, Max = 24 };
 
     [Header("REFERENCES")]
     public Fish FishPrefab;
@@ -384,6 +408,11 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
         base.Awake();
         InitialFishSpawning();
         InvokeRepeating(nameof(SpawnFish), SpawnInterval, SpawnInterval);
+    }
+
+    public void StopSpawning()
+    {
+        CancelInvoke(nameof(SpawnFish));        
     }
 
     private void InitialFishSpawning()
@@ -398,6 +427,8 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
 
     private void SpawnFish()
     {
+        if (SpawnBoundsArray == null || SpawnBoundsArray.Length == 0) return;
+
         int index = UnityEngine.Random.Range(0, SpawnBoundsArray.Length);
 
         Fish FishInstance = SpawnFishInBounds(SpawnBoundsArray[index]);
@@ -425,28 +456,69 @@ public class FishSpawnManager : Singleton<FishSpawnManager>
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireCube(transform.position + SpawnBounds.Offset, SpawnBounds.Size);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[0].Offset, SpawnBoundsArray[0].Size);
+        if (SpawnBoundsArray != null && SpawnBoundsArray.Length >= 2)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[0].Offset, SpawnBoundsArray[0].Size);
 
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[1].Offset, SpawnBoundsArray[1].Size);
+            Gizmos.color = Color.green;
+            Gizmos.DrawWireCube(transform.position + SpawnBoundsArray[1].Offset, SpawnBoundsArray[1].Size);
+        }
     }
 }
 
-
 -------------------------------------------------- GAMEMANAGER.CS --------------------------------------------------
+
+using UnityEngine;
 
 public class GameManager : Singleton<GameManager>
 {
+    [Header("Settings")]
+    public GameConfig Config; 
+    
+    public static GameSession Session { get; private set; }
+    public static SaveData CurrentSaveData { get; private set; }
+    
+    private float oxygenTimer;
+    private bool isGameActive;
+
     protected override void Awake()
     {
         base.Awake();
+        
+        Session = new GameSession();
+        CurrentSaveData = SaveManager.LoadData();
+
+        Session.OnMoneyChanged += CurrentSaveData.SetMoney;
+
+        Session.Initialize(Config, CurrentSaveData);
         EventManager.Initialize();
+        
+        isGameActive = true;
     }
 
-    private void Start()
+    public void Start()
     {
-        
+        UpgradeManager.Instance.Initialize();
+    }
+
+    private void Update()
+    {
+        if (!isGameActive || Session.CurrentOxygen <= 0) return;
+
+        oxygenTimer += Time.deltaTime * Session.State.OxygenDrainPerSecond;
+        if (oxygenTimer >= 1f)
+        {
+            int amount = Mathf.FloorToInt(oxygenTimer);
+            oxygenTimer -= amount;
+            Session.DeductOxygen(amount);
+        }
+    }
+
+    public void EndGame()
+    {
+        isGameActive = false;
+        SaveManager.SaveNewData(CurrentSaveData);
     }
 }
 
@@ -464,6 +536,9 @@ public class InputManager : Singleton<InputManager>
 
     public Action<Vector2> OnMouseMove;
 
+    // CACHE: Prevents allocating memory (Garbage Collection) on every click!
+    private Collider[] hitColliders = new Collider[30];
+
     protected override void Awake()
     {
         base.Awake();
@@ -471,40 +546,80 @@ public class InputManager : Singleton<InputManager>
         Cursor.lockState = CursorLockMode.Confined;
     }
 
-    private void Start()
-    {
-        
-    }
-
     private void Update()
     {
         Vector2 MousePos = Mouse.current.position.ReadValue();
         OnMouseMove?.Invoke(MousePos);
 
-        if (Physics.Raycast(Camera.main.ScreenPointToRay(MousePos), out RaycastHit hit))
+        Ray ray = Camera.main.ScreenPointToRay(MousePos);
+        if (Physics.Raycast(ray, out RaycastHit hit))
         {
             HitPoint = hit.point;
         }
 
-        if (!IsInputEnabled) return;
-        if (!Mouse.current.leftButton.wasPressedThisFrame) return;
+        if (!IsInputEnabled || !Mouse.current.leftButton.wasPressedThisFrame) return;
 
-        Collider[] insideDetection = new Collider[30];
-        int hitCount = Physics.OverlapSphereNonAlloc(hit.point, ConfigManager.Instance.AttackRadius, insideDetection, DetectLayer);
+        float attackRadius = GameManager.Session.State.AttackRadius;
+        int hitCount = Physics.OverlapSphereNonAlloc(HitPoint, attackRadius, hitColliders, DetectLayer);
 
         for (int i = 0; i < hitCount; i++)
         {
-            if (insideDetection[i].TryGetComponent(out IClickable clickable))
+            if (hitColliders[i].TryGetComponent(out IClickable clickable))
+            {
                 clickable.OnClick();
+            }
         }
     }
 
     private void OnDrawGizmos()
     {
-        if (!Application.isPlaying || ConfigManager.Instance == null) return;
+        if (!Application.isPlaying || GameManager.Instance == null) return;
 
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(HitPoint, ConfigManager.Instance.AttackRadius);
+        Gizmos.DrawWireSphere(HitPoint, GameManager.Session.State.AttackRadius);
+    }
+}
+
+-------------------------------------------------- SAVEMANAGER.CS --------------------------------------------------
+
+using System.IO;
+using UnityEditor;
+using UnityEngine;
+
+public class SaveManager
+{
+    private static readonly string FileName = "playerData.json";
+
+    public static void SaveNewData(SaveData Data)
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+        string json = JsonUtility.ToJson(Data, true);
+
+        File.WriteAllText(path, json);
+    }
+
+    public static SaveData LoadData()
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+
+        if (!File.Exists(path))
+        {
+            return new SaveData();
+        }
+
+        string json = File.ReadAllText(path);
+        return JsonUtility.FromJson<SaveData>(json);
+    }
+
+    [MenuItem("Tools/Clear Saved Data")]
+    public static void ClearSavedData()
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
     }
 }
 
@@ -518,38 +633,51 @@ public class UIManager : Singleton<UIManager>
     public TargetAreaElement TargetAreaSystem;
     public OxygenMeter OxygenMeterSystem;
     public MoneyMeter MoneyMeterSystem;
-
-    [Header("UI")]
     public DiveCompleteScreen DiveCompleteUI;
-    private IConfigInitializable[] ConfigInitializables;
+    public UpgradeTreeScreen UpgradeTreeUI;
+    public CursorSystem CustomCursor;
 
     private void Start()
     {
-        ConfigInitializables = new IConfigInitializable[] 
-        { 
-            TargetAreaSystem,
-            OxygenMeterSystem,
-            DiveCompleteUI,
-            MoneyMeterSystem
-        };
+        GameConfig config = GameManager.Instance.Config;
+        GameSession session = GameManager.Session;
 
-        UpdateConfig(ConfigManager.Instance);
+        // Apply Configurations
+        TargetAreaSystem.ApplyConfig(config);
+        OxygenMeterSystem.ApplyConfig(config);
+        DiveCompleteUI.ApplyConfig(config);
+        UpgradeTreeUI.ApplyConfig(config);
+
+        // Bind logic to UI
+        OxygenMeterSystem.Bind(session);
+        MoneyMeterSystem.Bind(session);
+        
+        // Initial setup calls so UI starts with correct values
+        MoneyMeterSystem.ForceUpdate(session.CurrentMoney);
+        OxygenMeterSystem.ForceUpdate(session.CurrentOxygen, 1f);
+
+        DiveCompleteUI.Hide();
+        UpgradeTreeUI.Hide();
+        CustomCursor.Enabled = false;
     }
 
     protected override void Subscribe()
     {
         InputManager.Instance.OnMouseMove += TargetAreaFollowMouse;
-        ConfigManager.Instance.OnConfigChanged += UpdateConfig;
-    }
-
-    private void UpdateConfig(ConfigManager Config)
-    {
-        Array.ForEach(ConfigInitializables, C => C.Initialize(Config));
     }
 
     protected override void Unsubscribe()
     {
-        InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;   
+        if(InputManager.Instance != null)
+        {
+            InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;
+        }
+            
+        if (GameManager.Session != null)
+        {
+            OxygenMeterSystem.Unbind(GameManager.Session);
+            MoneyMeterSystem.Unbind(GameManager.Session);
+        }
     }
 
     private void TargetAreaFollowMouse(Vector2 vector)
@@ -560,6 +688,204 @@ public class UIManager : Singleton<UIManager>
     public void ShowDiveCompleteScreen()
     {
         DiveCompleteUI.Show();
+    }
+
+    public void ShowUpgradeScreen()
+    {
+        DiveCompleteUI.Hide();
+        UpgradeTreeUI.Show();
+    }
+
+    public void ReturnToDiveCompleteScreen()
+    {
+        UpgradeTreeUI.Hide();
+        DiveCompleteUI.Show();
+    }
+}
+
+-------------------------------------------------- UPGRADEMANAGER.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+
+public class UpgradeManager : Singleton<UpgradeManager>
+{
+    public UpgradeData[] Upgrades;
+    public UpgradeNode NodePrefab;
+    public RectTransform CanvasParent; 
+
+    public void Initialize()
+    {
+        CreateUpgradeTreeNodes();
+    }
+
+    private void CreateUpgradeTreeNodes()
+    {
+        foreach(var upgrade in Upgrades)
+        {
+            UpgradeNode node = Instantiate(NodePrefab, CanvasParent);
+            node.Initialize(upgrade);
+        }
+    }
+
+    public static void ApplyNodeOnSession(string NodeId, GameSession Session)
+    {
+        if (Instance == null || Instance.Upgrades == null) return;
+
+        var upgrade = Instance.Upgrades.FirstOrDefault(u => u.Id == NodeId);
+        if (upgrade != null)
+        {
+            upgrade.Apply(Session.State);
+        }
+        else
+        {
+            Debug.LogWarning($"[UpgradeManager] Failed to apply node: Upgrade with ID '{NodeId}' not found.");
+        }
+    }
+
+    [ContextMenu("Load from folder")]
+    public void Load()
+    {
+#if UNITY_EDITOR
+        string[] guids = AssetDatabase.FindAssets("t:UpgradeData", new[] { "Assets/Upgrades" });
+
+        List<UpgradeData> upgradesList = new();
+
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            UpgradeData data = AssetDatabase.LoadAssetAtPath<UpgradeData>(path);
+
+            if (data != null)
+                upgradesList.Add(data);
+        }
+
+        Upgrades = upgradesList.ToArray();
+#endif
+    }
+}
+
+-------------------------------------------------- GAMECONFIG.CS --------------------------------------------------
+
+using UnityEngine;
+
+/// <summary>
+/// Designer-facing ScriptableObject that holds baseline values for every stat and flag
+/// in the upgrade system. Serves as the immutable template read at session start.
+///
+/// ARCHITECTURE RULE: UpgradeManager must NEVER modify this asset at runtime.
+///     1. GameSession copies relevant values from GameConfig on Initialize().
+///     2. UpgradeManager.ApplyNodeOnSession() then mutates the GameSession copy.
+///     3. This asset always reflects "zero upgrades purchased" defaults.
+/// </summary>
+[CreateAssetMenu(fileName = "GameConfig", menuName = "Settings/Game Config")]
+public class GameConfig : ScriptableObject
+{
+    [Header("Initial Default State")]
+    public GameState InitialState;
+}
+
+-------------------------------------------------- UPGRADEDATA.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+public enum ModifierType { Add, Multiply, Override }
+
+[Serializable]
+public class StatModifier
+{
+    [Tooltip("Exact name of the field in GameState, e.g. 'BaseDamage'")]
+    public string StatName;
+    public float Value;
+    public ModifierType ModType;
+}
+
+[Serializable]
+public class FlagModifier
+{
+    [Tooltip("Exact name of the boolean field in GameState, e.g. 'HasSniper'")]
+    public string FlagName;
+    public bool Value = true;
+}
+
+[Serializable]
+public class TooltipDisplayData
+{
+    public string Title;
+    [Space(5)]
+    [TextArea(3,10)]
+    public string Description;
+    [Space(5)]
+    public string Property;
+    [Space(5)]
+    public string Change;
+}
+
+[CreateAssetMenu(fileName = "UpgradeData", menuName = "Settings/New Upgrade")]
+public class UpgradeData : ScriptableObject
+{
+    public string Id = "";
+    public int Price;
+    public Sprite Icon;
+    public TooltipDisplayData TooltipData;
+
+    [Header("Modifiers")]
+    public List<StatModifier> StatModifiers = new List<StatModifier>();
+    public List<FlagModifier> FlagModifiers = new List<FlagModifier>();
+
+    [ContextMenu("Generate Id")]
+    public void GenerateId()
+    {
+        Id = Guid.NewGuid().ToString("N");
+    }
+
+    public virtual void Apply(GameState state)
+    {
+        foreach (var mod in StatModifiers)
+        {
+            var field = typeof(GameState).GetField(mod.StatName);
+            if (field != null)
+            {
+                if (field.FieldType == typeof(float))
+                {
+                    float current = (float)field.GetValue(state);
+                    if (mod.ModType == ModifierType.Add) current += mod.Value;
+                    else if (mod.ModType == ModifierType.Multiply) current *= mod.Value;
+                    else if (mod.ModType == ModifierType.Override) current = mod.Value;
+                    field.SetValue(state, current);
+                }
+                else if (field.FieldType == typeof(int))
+                {
+                    int current = (int)field.GetValue(state);
+                    if (mod.ModType == ModifierType.Add) current += (int)mod.Value;
+                    else if (mod.ModType == ModifierType.Multiply) current = Mathf.RoundToInt(current * mod.Value);
+                    else if (mod.ModType == ModifierType.Override) current = (int)mod.Value;
+                    field.SetValue(state, current);
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[UpgradeData] Stat '{mod.StatName}' not found in GameState!");
+            }
+        }
+
+        foreach (var mod in FlagModifiers)
+        {
+            var field = typeof(GameState).GetField(mod.FlagName);
+            if (field != null && field.FieldType == typeof(bool))
+            {
+                field.SetValue(state, mod.Value);
+            }
+            else
+            {
+                Debug.LogWarning($"[UpgradeData] Flag '{mod.FlagName}' not found in GameState!");
+            }
+        }
     }
 }
 
@@ -609,6 +935,7 @@ public class CameraShakeSettings
 
 -------------------------------------------------- CLICKERBUTTON.CS --------------------------------------------------
 
+using System;
 using DG.Tweening;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -620,6 +947,9 @@ public class ClickerButton : Button
     private RectTransform Graphics;
 
     [SerializeField] private float PressDuration = 0.05f;
+    public event Action OnPointerEnterAction;
+    public event Action OnPointerExitAction;
+
 
     protected override void Awake()
     {
@@ -634,8 +964,19 @@ public class ClickerButton : Button
         base.OnPointerDown(eventData);
 
         Graphics.DOKill();
-        Graphics.DOAnchorPos(Shadow.anchoredPosition, PressDuration)
-            .SetUpdate(true);
+        Graphics.DOAnchorPos(Shadow.anchoredPosition, PressDuration).SetUpdate(true).SetLink(gameObject);
+    }
+
+    public override void OnPointerEnter(PointerEventData eventData)
+    {
+        base.OnPointerEnter(eventData);
+        OnPointerEnterAction?.Invoke();
+    }
+
+    public override void OnPointerExit(PointerEventData eventData)
+    {
+        base.OnPointerExit(eventData);
+        OnPointerExitAction?.Invoke();
     }
 
     public override void OnPointerUp(PointerEventData eventData)
@@ -643,44 +984,120 @@ public class ClickerButton : Button
         base.OnPointerUp(eventData);
 
         Graphics.DOKill();
-        Graphics.DOAnchorPos(Vector2.zero, PressDuration)
-            .SetUpdate(true);
+        Graphics.DOAnchorPos(Vector2.zero, PressDuration).SetUpdate(true).SetLink(gameObject);
+    }
+}
+
+-------------------------------------------------- CURSORSYSTEM.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+
+[Serializable]
+public class CursorSystem
+{
+    public RectTransform CursorRect;
+    public Image CursorImage;
+    public Vector2 Pos 
+    { 
+        get => CursorRect.position;
+        set => CursorRect.position = value;
+    }
+    public bool Enabled
+    {
+        get
+        {
+            return CursorImage.enabled;
+        }
+        set 
+        {
+            if(value)
+            {
+                InputManager.Instance.OnMouseMove += FollowMouse;
+            }
+            else
+            {
+                InputManager.Instance.OnMouseMove -= FollowMouse;
+            }
+
+            CursorImage.enabled = value;
+        }
+    }
+
+    private void FollowMouse(Vector2 vector)
+    {
+        Pos = vector;
     }
 }
 
 -------------------------------------------------- DAMAGENUMBERSGENERATOR.CS --------------------------------------------------
 
 using UnityEngine;
+using UnityEngine.Pool;
 
-public static class DamageNumbersGenerator
+public class DamageNumbersGenerator : Singleton<DamageNumbersGenerator>
 {
-    public static Transform CreateDamageNumber(Vector3 position, float damage)
+    [Header("References")]
+    public DamageNumber Prefab; // Assign via Inspector (No more Resources.Load)
+
+    private ObjectPool<DamageNumber> pool;
+
+    protected override void Awake()
     {
-        DamageNumber Prefab = Resources.Load<DamageNumber>(nameof(DamageNumber));
-        DamageNumber Clone = Object.Instantiate(Prefab, position, Quaternion.identity);
-        Clone.Initialize(damage);
-        
-        return Clone.transform;
+        base.Awake();
+        pool = new ObjectPool<DamageNumber>(
+            createFunc: () => Instantiate(Prefab, transform),
+            actionOnGet: (obj) => obj.gameObject.SetActive(true),
+            actionOnRelease: (obj) => obj.gameObject.SetActive(false),
+            actionOnDestroy: (obj) => Destroy(obj.gameObject),
+            defaultCapacity: 20,
+            maxSize: 100
+        );
+    }
+
+    public void Spawn(Vector3 position, float damage)
+    {
+        DamageNumber clone = pool.Get();
+        clone.transform.position = position;
+        clone.Initialize(damage, ReturnToPool);
+    }
+
+    private void ReturnToPool(DamageNumber num)
+    {
+        pool.Release(num);
     }
 }
 
 -------------------------------------------------- DIVECOMPLETESCREEN.CS --------------------------------------------------
 
 using System;
-using DG.Tweening;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 [Serializable]
-public class DiveCompleteScreen : IConfigInitializable, IUiScreen
+public class DiveCompleteScreen : IUiScreen, IConfigurable
 {
     public GameObject Root;
+    public Button ContinueButton;
+    public Button UpgradeButton;
 
-    public void Hide()
+    public void ApplyConfig(GameConfig config)
     {
-        Root.SetActive(false);
+        ContinueButton.onClick.RemoveAllListeners();
+        UpgradeButton.onClick.RemoveAllListeners();
+
+        ContinueButton.onClick.AddListener(Reload);
+        UpgradeButton.onClick.AddListener(UIManager.Instance.ShowUpgradeScreen);
     }
 
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    private void Reload()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
+    public void Hide()
     {
         Root.SetActive(false);
     }
@@ -708,142 +1125,771 @@ public enum FISH_STATE
     DEAD,
 }
 
+-------------------------------------------------- GAMESESSION.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+/// <summary>
+/// Holds the volatile state for the current active run. 
+/// </summary>
+public class GameSession
+{
+    public int CurrentMoney { get; private set; }
+    public int CurrentOxygen { get; private set; }
+
+    // THE RUNTIME STATE MUTATED BY UPGRADES
+    public GameState State { get; private set; }
+
+    public event Action<int> OnMoneyChanged;
+    public event Action<int, float> OnOxygenChanged;
+    public event Action OnOxygenDepleted;
+
+    public void Initialize(GameConfig config, SaveData savedData)
+    {
+        State = config.InitialState.Clone();
+
+        CurrentMoney = savedData.CurTotalMoney;
+
+        foreach(string NodeId in savedData.CurUnlockedNodes)
+        {
+            UpgradeManager.ApplyNodeOnSession(NodeId, this);
+        }
+
+        CurrentOxygen = State.MaxOxygen;
+    }
+
+    public void AddMoney(int amount)
+    {
+        CurrentMoney += amount;
+        OnMoneyChanged?.Invoke(CurrentMoney);
+    }
+
+    public void DeductOxygen(int amount)
+    {
+        if (CurrentOxygen <= 0) return;
+
+        CurrentOxygen = Mathf.Max(0, CurrentOxygen - amount);
+        OnOxygenChanged?.Invoke(CurrentOxygen, (float)CurrentOxygen / State.MaxOxygen);
+        
+        if (CurrentOxygen == 0)
+        {
+            OnOxygenDepleted?.Invoke();
+        }
+    }
+
+    public void DeductMoney(int price)
+    {
+        CurrentMoney -= price;
+        OnMoneyChanged?.Invoke(CurrentMoney);
+    }
+}
+
+-------------------------------------------------- GAMESTATE.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+
+[Serializable]
+public class GameState
+{
+    public GameState Clone()
+    {
+        return (GameState)this.MemberwiseClone();
+    }
+
+    [Header("Base Combat")]
+
+    /// <summary>
+    /// Click Base Damage Before Multipliers
+    /// </summary>
+
+    public float BaseDamage = 1f;
+
+    /// <summary>
+    /// Radius of the Attack Detection Sphere Check
+    /// </summary>
+    [Range(1f, 15f)] public float AttackRadius = 1f;
+
+    [Header("Critical Strikes")]
+
+    /// <summary>0–1 probability of landing a critical hit.</summary>
+    [Range(0f, 1f)] public float CritChance = 0f;
+
+    /// <summary>Damage multiplier when a critical hit happens</summary>
+    [Range(1.2f, 5f)] public float CritMultiplier = 1.2f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("  Conditional Damage")]
+
+    /// <summary>First Strike — damage multiplier applied against fish at exactly 100% health.</summary>
+    public float FullHealthDamageMultiplier = 1f;
+
+    /// <summary>Execute — health fraction below which the execute multiplier kicks in.</summary>
+    [Range(0f, 0.5f)]
+    public float ExecuteHealthThreshold = 0.2f;
+
+    /// <summary>Execute — damage multiplier against fish below ExecuteHealthThreshold.</summary>
+    public float ExecuteDamageMultiplier = 1f;
+
+    /// <summary>Boss Hunter — damage multiplier applied specifically to Boss/Large-class fish.</summary>
+    public float BossDamageMultiplier = 1f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("  Frenzy")]
+
+    /// <summary>Frenzy — damage bonus added per consecutive click within the window (+5% default).</summary>
+    [Range(0f, 0.2f)]
+    public float FrenzyBonusPerStack = 0.05f;
+
+    /// <summary>Frenzy — maximum stacks before the bonus is capped (10 × 5% = +50%).</summary>
+    public int FrenzyMaxStacks = 10;
+
+    /// <summary>Frenzy — seconds within which clicks must occur to build stacks.</summary>
+    public float FrenzyWindowSeconds = 1f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("  Echo Click")]
+
+    /// <summary>Echo Click — every Nth click fires a free automatic click at the same position.</summary>
+    public int EchoClickInterval = 10;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("  Phantom Harpoon")]
+
+    /// <summary>Phantom Harpoon — ghost damage per second as a fraction of click damage.</summary>
+    [Range(0f, 1f)]
+    public float PhantomHarpoonDamagePercent = 0.1f;
+
+    /// <summary>Phantom Harpoon — seconds the ghost persists before disappearing.</summary>
+    public float PhantomHarpoonDuration = 3f;
+
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TREE 2 ─ PATH OF THE DEEP DIVER   Oxygen & Survival
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [Header("[ Deep Diver ]  Base Oxygen")]
+
+    /// <summary>Lung Capacity I / II / III — maximum oxygen the player can hold.</summary>
+    public int MaxOxygen = 100;
+
+    /// <summary>Efficient Breathing I / II / III — oxygen units drained per second.</summary>
+    public float OxygenDrainPerSecond = 1f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Restoration")]
+
+    /// <summary>Oxygen on Kill I & II — flat O2 restored each time any fish dies.</summary>
+    public float OxygenRestoredPerKill = 0f;
+
+    /// <summary>Symbiosis — extra O2 restored specifically when a Golden Fish dies.</summary>
+    public float GoldenFishOxygenRestore = 0f;
+
+    /// <summary>Vampire Fangs — fraction of damage dealt that is converted to O2 (e.g. 0.01 = 1%).</summary>
+    [Range(0f, 0.05f)]
+    public float VampireFangsPercent = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Passive Regen")]
+
+    /// <summary>Gills — O2 restored per regen tick (0 = disabled).</summary>
+    public float GillsRegenRate = 0f;
+
+    /// <summary>Gills — seconds between each regen tick.</summary>
+    public float GillsRegenInterval = 5f;
+
+    /// <summary>Deep Meditation — seconds the player must not click before regen starts.</summary>
+    public float MeditationIdleThreshold = 3f;
+
+    /// <summary>Deep Meditation — O2 regenerated per second while idle (0 = disabled).</summary>
+    public float MeditationRegenPerSecond = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Bubble Drops")]
+
+    /// <summary>Bubble Drops — per-fish probability of dropping a clickable O2 bubble on death.</summary>
+    [Range(0f, 0.2f)]
+    public float OxygenBubbleDropChance = 0f;
+
+    /// <summary>Bubble Drops — O2 restored when the player clicks a bubble.</summary>
+    public int OxygenBubbleRestoreAmount = 10;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Filter Feeder")]
+
+    /// <summary>Filter Feeder — O2 gained when clicking on empty water (0 = disabled).</summary>
+    public int FilterFeederOxygenGain = 0;
+
+    /// <summary>Filter Feeder — cooldown in seconds between Filter Feeder procs.</summary>
+    public float FilterFeederCooldown = 5f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Whale Song")]
+
+    /// <summary>Whale Song — cumulative kill count that summons a whale (0 = disabled).</summary>
+    public int WhaleSongKillInterval = 50;
+
+    /// <summary>Whale Song — fraction of MaxOxygen restored per whale visit.</summary>
+    [Range(0f, 1f)]
+    public float WhaleSongOxygenRestorePercent = 0.3f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Low-Oxygen Effects")]
+
+    /// <summary>Adrenaline Rush + Panic Thrashing — O2 fraction that counts as 'low' (e.g. 0.2 = 20%).</summary>
+    [Range(0f, 0.5f)]
+    public float LowOxygenThreshold = 0.2f;
+
+    /// <summary>Adrenaline Rush — damage multiplier applied while O2 is below LowOxygenThreshold.</summary>
+    public float AdrenalineDamageMultiplier = 1f;
+
+    /// <summary>Panic Thrashing — attack radius multiplier while O2 is below LowOxygenThreshold.</summary>
+    public float PanicRadiusMultiplier = 1f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Emergency Mechanics")]
+
+    /// <summary>Last Breath — seconds O2 is paused at zero before the run ends.</summary>
+    public float LastBreathPauseDuration = 3f;
+
+    /// <summary>Leviathan's Breath — seconds each kill pauses O2 drain (0 = flag not active).</summary>
+    public float LeviathanBreathPauseDuration = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Deep Diver ]  Abyssal Contract (Occultist cross-tree)")]
+
+    /// <summary>Abyssal Contract — multiplier applied to MaxOxygen (0.5 = −50%).</summary>
+    public float AbyssalContractOxygenMultiplier = 0.5f;
+
+    /// <summary>Abyssal Contract — multiplier applied to BaseDamage (5 = ×5).</summary>
+    public float AbyssalContractDamageMultiplier = 5f;
+
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TREE 3 ─ PATH OF THE TYCOON   Economy & Luck
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [Header("[ Tycoon ]  Sell Price")]
+
+    /// <summary>Haggler I / II / III — flat gold bonus added to every fish's base sell price.</summary>
+    public float FishSellPriceBonus = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Spawn Rates")]
+
+    /// <summary>Shiny Lure I & II — multiplier on the global fish spawn rate.</summary>
+    public float FishSpawnRateMultiplier = 1f;
+
+    /// <summary>Chumming I & II — maximum number of fish allowed on screen simultaneously.</summary>
+    public int MaxFishOnScreen = 10;
+
+    /// <summary>Golden Hook I / II / III — per-frame spawn probability for Golden Fish.</summary>
+    [Range(0f, 0.2f)]
+    public float GoldenFishSpawnChance = 0f;
+
+    /// <summary>Diamond Scales — per-frame spawn probability for Diamond Fish (capped at 0.1% by design).</summary>
+    [Range(0f, 0.01f)]
+    public float DiamondFishSpawnChance = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Special Fish Values")]
+
+    /// <summary>Gold Rush upgrades this from the default 2× to 3×.</summary>
+    public float GoldenFishValueMultiplier = 2f;
+
+    /// <summary>Diamond Scales — sell multiplier for Diamond Fish.</summary>
+    public float DiamondFishValueMultiplier = 20f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Combo System")]
+
+    /// <summary>Combo Multiplier — extra cash percentage added per active combo stack.</summary>
+    [Range(0f, 0.2f)]
+    public float ComboCashBonusPerStack = 0.05f;
+
+    /// <summary>Combo Mastery extends this from 2 s to 4 s.</summary>
+    public float ComboWindowSeconds = 2f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Proc Effects")]
+
+    /// <summary>Scavenger — probability of a non-lethal hit dropping loose cash.</summary>
+    [Range(0f, 0.5f)]
+    public float ScavengerDropChance = 0f;
+
+    /// <summary>Scavenger — gold amount dropped per proc.</summary>
+    public int ScavengerDropAmount = 1;
+
+    /// <summary>Midas Touch — probability that a nearby normal fish turns Golden after a Golden kill.</summary>
+    [Range(0f, 1f)]
+    public float MidasTouchChance = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Bounty Hunter")]
+
+    /// <summary>Bounty Hunter — seconds between bounty fish spawns.</summary>
+    public float BountyHunterSpawnInterval = 60f;
+
+    /// <summary>Bounty Hunter — sell multiplier applied to the bounty fish.</summary>
+    public float BountyHunterValueMultiplier = 10f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Treasure Chests")]
+
+    /// <summary>Treasure Chests — per-fish probability of spawning a chest on death.</summary>
+    [Range(0f, 0.05f)]
+    public float TreasureChestSpawnChance = 0f;
+
+    /// <summary>Treasure Chests — clicks needed to break a chest open.</summary>
+    public int TreasureChestClicksToOpen = 10;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Tycoon ]  Passive & End-of-Dive")]
+
+    /// <summary>Piggy Bank — interest rate applied to lifetime bank balance at dive end (e.g. 0.02 = 2%).</summary>
+    [Range(0f, 0.1f)]
+    public float PiggyBankInterestRate = 0f;
+
+    /// <summary>Sponsorship — passive gold earned per second, regardless of activity.</summary>
+    public float SponsorshipIncomePerSecond = 0f;
+
+    /// <summary>Monopoly — every Nth kill turns all on-screen fish Golden simultaneously.</summary>
+    public int MonopolyKillThreshold = 100;
+
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TREE 4 ─ PATH OF THE TRAPPER   Idle & Utility
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [Header("[ Trapper ]  Auto-Harpoon")]
+
+    /// <summary>Auto-Harpoon I / II / III — automatic shots fired per second (0 = disabled).
+    /// Tier I → 0.5, Tier II → 1, Tier III → 2.</summary>
+    public float AutoHarpoonFireRate = 0f;
+
+    /// <summary>Harpoon Overclock upgrades this from the default 0.5 to 1.0.</summary>
+    [Range(0f, 1f)]
+    public float AutoHarpoonDamagePercent = 0.5f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Trapper ]  Crowd Control")]
+
+    /// <summary>Heavy Water I & II — multiplier on all fish movement speeds (1 = normal, 0.8 = 20% slower).</summary>
+    [Range(0f, 1f)]
+    public float FishSpeedMultiplier = 1f;
+
+    /// <summary>Electrified Net — per-click probability of stunning the target fish.</summary>
+    [Range(0f, 1f)]
+    public float StunOnClickChance = 0f;
+
+    /// <summary>Net Mastery upgrades this from 1 s to 2.5 s.</summary>
+    public float StunDuration = 1f;
+
+    /// <summary>Barbed Wire — passive damage per second dealt to all fish inside AttackRadius,
+    /// expressed as a fraction of BaseDamage.</summary>
+    [Range(0f, 1f)]
+    public float BarbedWireDamagePercent = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Trapper ]  Damage Over Time")]
+
+    /// <summary>Toxic Coating — poison damage per tick as a fraction of BaseDamage.</summary>
+    [Range(0f, 1f)]
+    public float PoisonDamagePercent = 0f;
+
+    /// <summary>Toxic Coating — total duration of the poison debuff in seconds.</summary>
+    public float PoisonDuration = 3f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Trapper ]  Timed Events")]
+
+    /// <summary>Sonar Ping — seconds between radar sweeps (0 = disabled).</summary>
+    public float SonarPingInterval = 0f;
+
+    /// <summary>Sonar Ping — seconds fish are frozen after being caught by the sweep.</summary>
+    public float SonarPingFreezeDuration = 2f;
+
+    /// <summary>Sea Mines — seconds between mine spawns (0 = disabled).</summary>
+    public float SeaMineSpawnInterval = 0f;
+
+    /// <summary>Auto-Chum — seconds between bonus fish spawning near the cursor (0 = disabled).</summary>
+    public float AutoChumInterval = 0f;
+
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // TREE 5 ─ PATH OF THE OCCULTIST   Chaos & Magic
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [Header("[ Occultist ]  Area-of-Effect")]
+
+    /// <summary>Corpse Explosion — AoE damage on kill expressed as a fraction of the dead fish's Max HP.</summary>
+    [Range(0f, 1f)]
+    public float CorpseExplosionDamagePercent = 0f;
+
+    /// <summary>Chain Lightning — extra fish the click damage bounces to.
+    /// Chain Lightning = 1, High Voltage upgrades this to 3.</summary>
+    public int ChainLightningBounces = 0;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Occultist ]  Proc Effects")]
+
+    /// <summary>Necromancy — per-kill probability of spawning a friendly Ghost Fish ally.</summary>
+    [Range(0f, 0.5f)]
+    public float NecromancyChance = 0f;
+
+    /// <summary>Soul Stealer — per-kill probability that the next click is an instant kill.</summary>
+    [Range(0f, 0.1f)]
+    public float SoulStealerChance = 0f;
+
+    /// <summary>Schrodinger's Fish — per-spawn probability that a fish instantly dies and drops its value.</summary>
+    [Range(0f, 0.1f)]
+    public float SchrodingerInstantDeathChance = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Occultist ]  Per-Kill Scaling")]
+
+    /// <summary>Blood Frenzy — fractional AttackRadius increase gained per kill this dive
+    /// (stacks are tracked in GameSession, not here).</summary>
+    public float BloodFrenzyRadiusPerKill = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Occultist ]  Timed Events")]
+
+    /// <summary>Poseidon's Trident — lightning bolts fire every Nth manual click (0 = disabled).</summary>
+    public int PoseidonTridentClickInterval = 0;
+
+    /// <summary>Eldritch Tentacles — seconds between tentacle events that kill the 3 highest-HP fish (0 = disabled).</summary>
+    public float EldritchTentaclesInterval = 0f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Occultist ]  Alchemist's Greed  (toggled ability)")]
+
+    /// <summary>Alchemist's Greed — O2 drain multiplier while the ability is toggled on.</summary>
+    public float AlchemistsGreedOxygenDrainMultiplier = 3f;
+
+    /// <summary>Alchemist's Greed — damage multiplier while toggled on.</summary>
+    public float AlchemistsGreedDamageMultiplier = 3f;
+
+    /// <summary>Alchemist's Greed — money multiplier while toggled on.</summary>
+    public float AlchemistsGreedMoneyMultiplier = 3f;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Occultist ]  Sea Witch's Brew")]
+
+    /// <summary>Sea Witch's Brew — global payout multiplier applied when Brew is active.</summary>
+    public float SeaWitchBrewPayoutMultiplier = 1.5f;
+
+
+    // ═══════════════════════════════════════════════════════════════════════════════
+    // CUSTOM FLAG UPGRADES
+    // Cannot be expressed as simple numbers. Each starts false.
+    // UpgradeManager.ApplyNodeOnSession() sets the corresponding flag to true.
+    // ═══════════════════════════════════════════════════════════════════════════════
+
+    [Header("[ Flags ]  Tree 1 — Harpooner")]
+
+    [Tooltip("Momentum: +20% damage while the player's cursor is actively moving.")]
+    public bool HasMomentum;
+
+    [Tooltip("Sniper: 3× damage when the click lands on the exact centre of a fish.")]
+    public bool HasSniper;
+
+    [Tooltip("Piercing: AoE attacks deal full damage to every target instead of dividing it.")]
+    public bool HasPiercing;
+
+    [Tooltip("Echo Click: every EchoClickInterval-th click fires an automatic free click at the same spot.")]
+    public bool HasEchoClick;
+
+    [Tooltip("Shockwave: killing a fish deals 10% of its Max HP as damage to all fish inside AttackRadius.")]
+    public bool HasShockwave;
+
+    [Tooltip("Armor Piercing: click damage ignores any armor/defense stat on Boss-class fish.")]
+    public bool HasArmorPiercing;
+
+    [Tooltip("Heavy Hook: click damage scales up with the target fish's missing health percentage.")]
+    public bool HasHeavyHook;
+
+    [Tooltip("Tidal Force: each click pushes surviving fish slightly away from the cursor.")]
+    public bool HasTidalForce;
+
+    [Tooltip("Vortex Strike: each click pulls surviving fish slightly toward the cursor.")]
+    public bool HasVortexStrike;
+
+    [Tooltip("Phantom Harpoon: clicks leave a ghost that deals PhantomHarpoonDamagePercent per second for PhantomHarpoonDuration seconds.")]
+    public bool HasPhantomHarpoon;
+
+    [Tooltip("Kraken's Wrath (ULTIMATE): click damage is permanently multiplied by total fish killed this dive.")]
+    public bool HasKrakensWrath;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Flags ]  Tree 2 — Deep Diver")]
+
+    [Tooltip("Second Wind: once per run, automatically restore 50% of MaxOxygen when O2 reaches zero.")]
+    public bool HasSecondWind;
+
+    [Tooltip("Depth Adapter: passive O2 drain rate gradually decreases the longer a dive runs.")]
+    public bool HasDepthAdapter;
+
+    [Tooltip("Hyperventilation: dives begin at 150% O2; drain proceeds normally once it falls below 100%.")]
+    public bool HasHyperventilation;
+
+    [Tooltip("Iron Lungs: MaxOxygen doubles, but all per-kill O2 restoration is halved.")]
+    public bool HasIronLungs;
+
+    [Tooltip("Scuba Tank: exposes a UI button that fully restores O2 once per dive.")]
+    public bool HasScubaTank;
+
+    [Tooltip("Blood Magic: any O2 restoration that would exceed MaxOxygen is converted into bonus damage instead.")]
+    public bool HasBloodMagic;
+
+    [Tooltip("Last Breath: O2 freezes at zero for LastBreathPauseDuration seconds before the run ends.")]
+    public bool HasLastBreath;
+
+    [Tooltip("Leviathan's Breath (ULTIMATE): every kill pauses O2 drain for LeviathanBreathPauseDuration seconds.")]
+    public bool HasLeviathanBreath;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Flags ]  Tree 3 — Tycoon")]
+
+    [Tooltip("Appraiser: clicking a fish reveals its HP and exact value, and permanently raises its sell price by 10%.")]
+    public bool HasAppraiser;
+
+    [Tooltip("Whale Investor: end-of-dive earnings are multiplied by the fraction of O2 remaining at dive end.")]
+    public bool HasWhaleInvestor;
+
+    [Tooltip("Cursed Gold: Golden Fish move 2× faster and have 2× HP, but sell for 5× instead of GoldenFishValueMultiplier.")]
+    public bool HasCursedGold;
+
+    [Tooltip("Pirate's Plunder: Boss-class fish spawn 3 Golden Fish on death.")]
+    public bool HasPiratesPlunder;
+
+    [Tooltip("Tax Evasion: the player loses no money on death (removes any future money-loss-on-death mechanic).")]
+    public bool HasTaxEvasion;
+
+    [Tooltip("Bounty Hunter: enables periodic high-value bounty fish spawns (see BountyHunterSpawnInterval).")]
+    public bool HasBountyHunter;
+
+    [Tooltip("Treasure Chests: enables locked chests spawning on fish death (see TreasureChestSpawnChance).")]
+    public bool HasTreasureChests;
+
+    [Tooltip("Monopoly (ULTIMATE): every MonopolyKillThreshold kills simultaneously turns all on-screen fish Golden.")]
+    public bool HasMonopoly;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Flags ]  Tree 4 — Trapper")]
+
+    [Tooltip("Targeting AI: Auto-Harpoon targets the fish with the lowest current health instead of a random one.")]
+    public bool HasTargetingAI;
+
+    [Tooltip("Venomous Spread: when a poisoned fish dies, the poison jumps to the nearest living fish.")]
+    public bool HasVenomousSpread;
+
+    [Tooltip("Magnetizer: all fish are slowly dragged toward the centre of the screen.")]
+    public bool HasMagnetizer;
+
+    [Tooltip("Laser Turret: a damage beam sweeps left-to-right across the bottom of the screen continuously.")]
+    public bool HasLaserTurret;
+
+    [Tooltip("Decoy Dummy: spawns a fake bait; fish AI targets the bait instead of their normal destination for 5 seconds.")]
+    public bool HasDecoyDummy;
+
+    [Tooltip("Freezing Depths: fish spawn with an icy armour shell; breaking it permanently slows that fish by 50%.")]
+    public bool HasFreezingDepths;
+
+    [Tooltip("Trawler Net: a net sweeps up the screen, dragging fish to the top edge and bunching them together.")]
+    public bool HasTrawlerNet;
+
+    [Tooltip("Electric Eel Pet: a pet eel swims around and permanently stuns any Golden Fish it contacts.")]
+    public bool HasElectricEelPet;
+
+    [Tooltip("Drone Collector: automatically clicks Treasure Chests open and collects any physical drops.")]
+    public bool HasDroneCollector;
+
+    [Tooltip("Ghost in the Machine (ULTIMATE): Auto-Harpoon fire rate scales with the player's current manual click rate.")]
+    public bool HasGhostInTheMachine;
+
+    [Tooltip("Chaos Bolts: Auto-Harpoon fires 3 simultaneous projectiles in random directions each shot.")]
+    public bool HasChaosBolts;
+
+    // ─────────────────────────────────────────────────────────────────
+    [Header("[ Flags ]  Tree 5 — Occultist")]
+
+    [Tooltip("Void Rift: clicking the same empty spot 5 times rapidly opens a black hole that pulls all fish to the centre.")]
+    public bool HasVoidRift;
+
+    [Tooltip("Time Warp: as O2 falls, fish movement slows proportionally — but the player's actions are unaffected.")]
+    public bool HasTimeWarp;
+
+    [Tooltip("Alchemist's Greed: player can toggle a mode that applies the Alchemist multipliers to O2 drain, damage, and money.")]
+    public bool HasAlchemistsGreed;
+
+    [Tooltip("Abyssal Contract: MaxOxygen × AbyssalContractOxygenMultiplier; BaseDamage × AbyssalContractDamageMultiplier.")]
+    public bool HasAbyssalContract;
+
+    [Tooltip("Sea Witch's Brew: fish stats (speed, size, HP) are randomised on spawn; payouts scale with SeaWitchBrewPayoutMultiplier.")]
+    public bool HasSeaWitchBrew;
+
+    [Tooltip("Siren Song: fish occasionally freeze, stop pathing, and spin in place for a few seconds.")]
+    public bool HasSirenSong;
+
+    [Tooltip("Tidal Wave: grants one spell charge per dive that instantly kills every fish currently on screen.")]
+    public bool HasTidalWave;
+
+    [Tooltip("Doppelganger: the player's cursor is mirrored on the opposite side of the screen, doubling every click.")]
+    public bool HasDoppelganger;
+
+    [Tooltip("Meteor Swarm: clicking a Boss-class fish causes flaming debris to fall from the top of the screen, hitting other fish.")]
+    public bool HasMeteorSwarm;
+
+    [Tooltip("Ascension (ULTIMATE): AttackRadius becomes the entire screen; BaseDamage is applied constantly to all fish.")]
+    public bool HasAscension;
+}
+
 -------------------------------------------------- MINMAX.CS --------------------------------------------------
 
 using System;
 using UnityEngine;
 
 [Serializable]
-public class MinMax<T> where T : struct
+public struct MinMaxInt
 {
-    public T Min;
-    public T Max;
+    public int Min;
+    public int Max;
+    public int GetRandomValue() => UnityEngine.Random.Range(Min, Max + 1);
+}
 
-    public MinMax(T min, T max)
-    {
-        Min = min;
-        Max = max;
-    }
+[Serializable]
+public struct MinMaxFloat
+{
+    public float Min;
+    public float Max;
+    public float GetRandomValue() => UnityEngine.Random.Range(Min, Max);
+}
 
-    public T GetRandomValue()
+[Serializable]
+public struct MinMaxVector3
+{
+    public Vector3 Min;
+    public Vector3 Max;
+    public Vector3 GetRandomValue()
     {
-        if (typeof(T) == typeof(int))
-        {
-            int minValue = Convert.ToInt32(Min);
-            int maxValue = Convert.ToInt32(Max);
-            return (T)(object)UnityEngine.Random.Range(minValue, maxValue + 1);
-        }
-        else if (typeof(T) == typeof(float))
-        {
-            float minValue = Convert.ToSingle(Min);
-            float maxValue = Convert.ToSingle(Max);
-            return (T)(object)UnityEngine.Random.Range(minValue, maxValue);
-        }
-        else if(typeof(T) == typeof(Vector3))
-        {
-            Vector3 minValue = (Vector3)(object)Min;
-            Vector3 maxValue = (Vector3)(object)Max;
-            Vector3 randomValue = new Vector3
-            (
-                UnityEngine.Random.Range(minValue.x, maxValue.x),
-                UnityEngine.Random.Range(minValue.y, maxValue.y),
-                UnityEngine.Random.Range(minValue.z, maxValue.z)
-            );
-            
-            return (T)(object)randomValue;
-        }
-        else
-        {
-            throw new InvalidOperationException("Unsupported type for MinMax. Only int, float and Vector3 are supported.");
-        }
+        return new Vector3(
+            UnityEngine.Random.Range(Min.x, Max.x),
+            UnityEngine.Random.Range(Min.y, Max.y),
+            UnityEngine.Random.Range(Min.z, Max.z)
+        );
     }
 }
 
 -------------------------------------------------- MONEYMETER.CS --------------------------------------------------
 
 using System;
+using DG.Tweening;
 using TMPro;
 
 [Serializable]
-public class MoneyMeter : IConfigInitializable
+public class MoneyMeter : ISessionBindable
 {
     public TextMeshProUGUI Label;
-    private int CurrentMoney
-    {
-        set
-        {
-            _CurMoney = value;
-            Label.text = $"${value}";
-        }
 
-        get => _CurMoney;
+    public void Bind(GameSession session)
+    {
+        session.OnMoneyChanged += OnMoneyChanged;
     }
 
-    private int _CurMoney;
-
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    public void Unbind(GameSession session)
     {
-        CurrentMoney = Config.Money;
+        session.OnMoneyChanged -= OnMoneyChanged;
+    }
+
+    public void ForceUpdate(int currentMoney)
+    {
+        OnMoneyChanged(currentMoney);
+    }
+
+    private void OnMoneyChanged(int currentMoney)
+    {
+        Label.text = $"${currentMoney}";
+        Label.transform.DOComplete();
+        Label.transform.DOShakeScale(0.2f).SetLink(Label.gameObject);
     }
 }
 
 -------------------------------------------------- OXYGENMETER.CS --------------------------------------------------
 
 using System;
-using DG.Tweening;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 [Serializable]
-public class OxygenMeter : IConfigInitializable
+public class OxygenMeter : IConfigurable, ISessionBindable
 {
     public Image FillAmount;
     public RectTransform FillSlider;
     public TextMeshProUGUI Label;
 
     public float SlideWidthAdjust = 2.56f;
-    private int CurrentOxygen
+    private int MaxOxygen;
+
+    public void ApplyConfig(GameConfig config)
     {
-        get => _CurrentOxygen;
-        set
-        {
-            _CurrentOxygen = value;
-            FillAmount.fillAmount = (float) CurrentOxygen / MaxOxygen;    
-        }
+        FillSlider.sizeDelta = new Vector2(GameManager.Session.State.MaxOxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
+        MaxOxygen = GameManager.Session.State.MaxOxygen;
     }
 
-    private int _CurrentOxygen;
-    private int MaxOxygen = -1;
-    private bool CanDecreaseOxygen = false;
-    private Tween OxygenDeductTween;
-    private float UnitOxygenDeductionDuration = 1f;
-
-    public event Action OnOxygenFinished;
-
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    public void Bind(GameSession session)
     {
-        MaxOxygen = CurrentOxygen = Config.Oxygen;
-        UnitOxygenDeductionDuration = Config.UnitOxygenDeductionDuration;
-        FillAmount.fillAmount = 1;
+        session.OnOxygenChanged += OnOxygenChanged;
+    }
 
-        FillSlider.sizeDelta = new Vector2(Config.Oxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
+    public void Unbind(GameSession session)
+    {
+        session.OnOxygenChanged -= OnOxygenChanged;
+    }
 
-        CanDecreaseOxygen = true;
+    public void ForceUpdate(int currentOxygen, float normalized)
+    {
+        OnOxygenChanged(currentOxygen, normalized);
+    }
+
+    private void OnOxygenChanged(int currentOxygen, float normalizedValue)
+    {
+        FillAmount.fillAmount = normalizedValue;
+        Label.text = $"{currentOxygen}/{MaxOxygen}";
+    }
+}
+
+-------------------------------------------------- SAVEDATA.CS --------------------------------------------------
+
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+[Serializable]
+public class SaveData
+{
+    [SerializeField] private int TotalMoney;
+    [SerializeField] private List<string> UnlockedNodes = new();
+
+    public bool HasNode(string id) => UnlockedNodes.Contains(id);
+    
+    public void AddNodeId(string Id)
+    {
+        if (HasNode(Id)) return;
         
-        OxygenDeductTween?.Kill();
-        OxygenDeductTween = null;
-        OxygenDeductTween = DOVirtual.DelayedCall(UnitOxygenDeductionDuration, () => DeductOxygen()).SetLoops(-1, LoopType.Restart);
+        UnlockedNodes.Add(Id);
+        SaveManager.SaveNewData(this);
     }
 
-    private void DeductOxygen()
+    public void SetMoney(int money)
     {
-        CurrentOxygen = Math.Max(0, CurrentOxygen - 1);
-        if(CurrentOxygen != 0) return;
-        Label.text = $"{CurrentOxygen/MaxOxygen}";
-
-        OnOxygenFinished?.Invoke();
+        TotalMoney = money;
     }
+
+    public int CurTotalMoney => TotalMoney;
+    public IReadOnlyList<string> CurUnlockedNodes => UnlockedNodes;
 }
 
 -------------------------------------------------- SERIALIZABLEDICTIONARY.CS --------------------------------------------------
@@ -931,7 +1977,7 @@ using System;
 using UnityEngine;
 
 [Serializable]
-public class TargetAreaElement : IConfigInitializable
+public class TargetAreaElement : IConfigurable
 {
     public RectTransform Ring;
     public Material RingProceduralMaterial;
@@ -940,14 +1986,142 @@ public class TargetAreaElement : IConfigInitializable
     public Vector2 Position 
     { 
         get => Ring.position;
-        set
-        {
-            Ring.position = value;
-        }
+        set => Ring.position = value;
     }
 
-    public void Initialize(ConfigManager Config, bool IsUpdate = true)
+    public void ApplyConfig(GameConfig config)
     {
-        RingProceduralMaterial.SetFloat("_Radius", Config.AttackRadius * RingRadiusAdjust);
+        RingProceduralMaterial.SetFloat("_Radius", GameManager.Session.State.AttackRadius * RingRadiusAdjust);
+    }
+}
+
+-------------------------------------------------- UPGRADENODE.CS --------------------------------------------------
+
+using System;
+using DG.Tweening;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class UpgradeNode : MonoBehaviour
+{
+    public bool Interactable
+    {
+        get => UpgradeIconButton.interactable;
+        set => UpgradeIconButton.interactable = value;
+    }
+
+    public ClickerButton UpgradeIconButton;
+    public Image Icon;
+    public RectTransform TooltipContainer;
+
+    [Header("REFERENCES")]
+    public TextMeshProUGUI UpgradeTitle;
+    public TextMeshProUGUI UpgradePrice;
+    public TextMeshProUGUI UpgradeDescription;
+    public TextMeshProUGUI UpgradePropertyName;
+    public TextMeshProUGUI UpgradePropertyChange;
+
+
+    [Header("ANIMATION SETTINGS")]
+    public float TooltipPopupDuration;
+    public float IconShakeStrength;
+
+
+    private Vector3 _OriginalIconScale;
+    private bool PurchasedAlready(string Id) => GameManager.CurrentSaveData.HasNode(Id);
+
+    private void Awake()
+    {
+        UpgradeIconButton.onClick.RemoveAllListeners();
+        UpgradeIconButton.OnPointerEnterAction += OnHoverStart;
+        UpgradeIconButton.OnPointerExitAction += OnHoverEnd;
+        _OriginalIconScale = Icon.transform.localScale;
+    }
+
+    public void Initialize(UpgradeData upgradeData)
+    {
+        UpgradeTitle.text = upgradeData.TooltipData.Title;
+        UpgradePrice.text = $"${upgradeData.Price.ToString()}";
+        UpgradeDescription.text = upgradeData.TooltipData.Description;
+        UpgradePropertyName.text = upgradeData.TooltipData.Property;
+        UpgradePropertyChange.text = upgradeData.TooltipData.Change;
+        Icon.sprite = upgradeData.Icon;
+        
+        UpgradeIconButton.onClick.AddListener(() => 
+        {
+            bool IsAffordable = GameManager.Session.CurrentMoney >= upgradeData.Price;
+            Debug.Log($"Is affordable: {IsAffordable}");
+
+            bool AlreadyPurchased = PurchasedAlready(upgradeData.Id);
+            Debug.Log($"Already purchased: {AlreadyPurchased}");
+
+            if (IsAffordable && !AlreadyPurchased)
+            {
+                Debug.Log($"Purchase Successful: {upgradeData.Id}");
+                GameManager.Session.DeductMoney(upgradeData.Price);
+                GameManager.CurrentSaveData.AddNodeId(upgradeData.Id);
+                upgradeData.Apply(GameManager.Session.State);
+                Interactable = false;
+            }
+        });
+    }
+
+    private void OnHoverEnd()
+    {
+        if(!Interactable) return;
+
+        TooltipContainer.DOComplete();
+        Icon.DOComplete();
+        
+        TooltipContainer.transform.localScale = Vector3.one;
+        TooltipContainer.DOScale(Vector3.zero, TooltipPopupDuration).SetEase(Ease.InBack).SetLink(TooltipContainer.gameObject);
+        Icon.transform.DOScale(_OriginalIconScale, 0.1f).SetLink(Icon.gameObject);
+    }
+
+    private void OnHoverStart()
+    {
+        if(!Interactable) return;
+
+        TooltipContainer.DOComplete();
+        Icon.DOComplete();
+
+        TooltipContainer.transform.localScale = Vector3.zero;
+        TooltipContainer.DOScale(Vector3.one, TooltipPopupDuration).SetEase(Ease.InBack).SetLink(TooltipContainer.gameObject);
+        Icon.transform.DOScale(_OriginalIconScale * 0.8f, 0.1f).SetLink(Icon.gameObject);
+    }
+}
+
+-------------------------------------------------- UPGRADETREESCREEN.CS --------------------------------------------------
+
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+
+[Serializable]
+public class UpgradeTreeScreen : IUiScreen, IConfigurable
+{
+    public GameObject Root;
+    public Button BackButton;
+
+    public void ApplyConfig(GameConfig config)
+    {
+        BackButton.onClick.RemoveAllListeners();
+        BackButton.onClick.AddListener(UIManager.Instance.ReturnToDiveCompleteScreen);
+    }
+
+    private void InitializeTreeUI(GameConfig config)
+    {
+        
+    }
+
+    public void Hide()
+    {
+        Root.SetActive(false);
+    }
+
+    public void Show()
+    {
+        Root.SetActive(true);
     }
 }

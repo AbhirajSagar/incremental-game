@@ -51,13 +51,13 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Angle: 16.07
+    - _Angle: 16.02
     - _NoiseMult: 10.28
     - _QueueControl: 0
     - _QueueOffset: 0
-    - _Scale: 89.41
+    - _Scale: 88.3
     - _Smoothness: 0.24
-    - _Strength: 0.09
+    - _Strength: 0.2
     m_Colors:
     - _Color: {r: 1, g: 0.88226414, b: 0.6320754, a: 1}
     - _Color_A: {r: 1, g: 0.62402177, b: 0, a: 1}

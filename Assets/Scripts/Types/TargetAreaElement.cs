@@ -16,6 +16,6 @@ public class TargetAreaElement : IConfigurable
 
     public void ApplyConfig(GameConfig config)
     {
-        RingProceduralMaterial.SetFloat("_Radius", config.AttackRadius * RingRadiusAdjust);
+        RingProceduralMaterial.SetFloat("_Radius", GameManager.Session.State.AttackRadius * RingRadiusAdjust);
     }
 }

@@ -10,24 +10,26 @@ public class UIManager : Singleton<UIManager>
     public UpgradeTreeScreen UpgradeTreeUI;
     public CursorSystem CustomCursor;
 
+
+    public event Action OnUpgradeScreenShow;
+
     private void Start()
     {
         GameConfig config = GameManager.Instance.Config;
-        GameSession session = GameManager.Instance.Session;
+        GameSession session = GameManager.Session;
 
-        // Apply Configurations
         TargetAreaSystem.ApplyConfig(config);
         OxygenMeterSystem.ApplyConfig(config);
         DiveCompleteUI.ApplyConfig(config);
         UpgradeTreeUI.ApplyConfig(config);
 
-        // Bind logic to UI
         OxygenMeterSystem.Bind(session);
         MoneyMeterSystem.Bind(session);
         
-        // Initial setup calls so UI starts with correct values
+        // [FIXED] Oxygen shouldn't automatically assume 1f normal value if initialized with modified starting O2
         MoneyMeterSystem.ForceUpdate(session.CurrentMoney);
-        OxygenMeterSystem.ForceUpdate(session.CurrentOxygen, 1f);
+        float normalizedO2 = session.State.MaxOxygen > 0 ? (float)session.CurrentOxygen / session.State.MaxOxygen : 0;
+        OxygenMeterSystem.ForceUpdate(session.CurrentOxygen, normalizedO2);
 
         DiveCompleteUI.Hide();
         UpgradeTreeUI.Hide();
@@ -36,37 +38,34 @@ public class UIManager : Singleton<UIManager>
 
     protected override void Subscribe()
     {
-        InputManager.Instance.OnMouseMove += TargetAreaFollowMouse;
+        if (InputManager.Instance != null)
+            InputManager.Instance.OnMouseMove += TargetAreaFollowMouse;
     }
 
     protected override void Unsubscribe()
     {
-        if(InputManager.Instance != null)
-        {
+        if (InputManager.Instance != null)
             InputManager.Instance.OnMouseMove -= TargetAreaFollowMouse;
-        }
             
-        if (GameManager.Instance != null && GameManager.Instance.Session != null)
+        if (GameManager.Session != null)
         {
-            OxygenMeterSystem.Unbind(GameManager.Instance.Session);
-            MoneyMeterSystem.Unbind(GameManager.Instance.Session);
+            OxygenMeterSystem.Unbind(GameManager.Session);
+            MoneyMeterSystem.Unbind(GameManager.Session);
         }
+        
+        // [FIXED] Failing to disable CustomCursor here leaked an event subscription in CursorSystem across scenes
+        CustomCursor.Enabled = false;
     }
 
-    private void TargetAreaFollowMouse(Vector2 vector)
-    {
-        TargetAreaSystem.Position = vector;
-    }
+    private void TargetAreaFollowMouse(Vector2 vector) => TargetAreaSystem.Position = vector;
 
-    public void ShowDiveCompleteScreen()
-    {
-        DiveCompleteUI.Show();
-    }
-
+    public void ShowDiveCompleteScreen() => DiveCompleteUI.Show();
+    
     public void ShowUpgradeScreen()
     {
         DiveCompleteUI.Hide();
         UpgradeTreeUI.Show();
+        OnUpgradeScreenShow?.Invoke();
     }
 
     public void ReturnToDiveCompleteScreen()

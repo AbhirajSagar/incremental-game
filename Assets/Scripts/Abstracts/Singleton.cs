@@ -1,5 +1,6 @@
 using UnityEngine;
-public abstract class Singleton<T> : MonoBehaviour where T : Singleton<T>
+
+public abstract class Singleton<T> : MonoBehaviour where T : MonoBehaviour
 {
     private static T _instance;
 
@@ -7,7 +8,10 @@ public abstract class Singleton<T> : MonoBehaviour where T : Singleton<T>
     {
         get
         {
-            _instance ??= FindAnyObjectByType<T>();
+            if (_instance == null)
+            {
+                _instance = FindAnyObjectByType<T>();
+            }
             return _instance;
         }
     }
@@ -17,34 +21,26 @@ public abstract class Singleton<T> : MonoBehaviour where T : Singleton<T>
         if (_instance != null && _instance != this)
         {
             Destroy(gameObject);
+            return;
         }
-        else
-        {
-            _instance = this as T;
-        }
+        
+        _instance = this as T;
     }
 
-    protected virtual void Subscribe()
-    {
-        
-    }
-    protected virtual void Unsubscribe()
-    {
-        
-    }
+    protected virtual void OnEnable() => Subscribe();
+    
+    protected virtual void OnDisable() => Unsubscribe();
 
     protected virtual void OnDestroy()
     {
+        if (_instance == this)
+        {
+            _instance = null;
+        }
+        
         Unsubscribe();
     }
 
-    protected virtual void OnDisable()
-    {
-        Unsubscribe();
-    }
-
-    protected virtual void OnEnable()
-    {
-        Subscribe();
-    }
+    protected virtual void Subscribe() { }
+    protected virtual void Unsubscribe() { }
 }

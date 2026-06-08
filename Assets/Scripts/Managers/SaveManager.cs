@@ -1,4 +1,5 @@
 using System.IO;
+using UnityEditor;
 using UnityEngine;
 
 public class SaveManager
@@ -24,5 +25,16 @@ public class SaveManager
 
         string json = File.ReadAllText(path);
         return JsonUtility.FromJson<SaveData>(json);
+    }
+
+    [MenuItem("Tools/Clear Saved Data")]
+    public static void ClearSavedData()
+    {
+        string path = Path.Combine(Application.persistentDataPath, FileName);
+
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
     }
 }

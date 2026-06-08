@@ -7,34 +7,34 @@ public class CursorSystem
 {
     public RectTransform CursorRect;
     public Image CursorImage;
+    
     public Vector2 Pos 
     { 
         get => CursorRect.position;
         set => CursorRect.position = value;
     }
+
+    private bool _isEnabled;
     public bool Enabled
     {
-        get
-        {
-            return CursorImage.enabled;
-        }
+        get => _isEnabled;
         set 
         {
-            if(value)
+            if (_isEnabled == value) return; // [FIXED] Prevent duplicated delegate sub/unsub memory leaks
+            _isEnabled = value;
+            
+            if(_isEnabled)
             {
-                InputManager.Instance.OnMouseMove += FollowMouse;
+                if(InputManager.Instance != null) InputManager.Instance.OnMouseMove += FollowMouse;
             }
             else
             {
-                InputManager.Instance.OnMouseMove -= FollowMouse;
+                if(InputManager.Instance != null) InputManager.Instance.OnMouseMove -= FollowMouse;
             }
 
-            CursorImage.enabled = value;
+            if (CursorImage != null) CursorImage.enabled = _isEnabled;
         }
     }
 
-    private void FollowMouse(Vector2 vector)
-    {
-        Pos = vector;
-    }
+    private void FollowMouse(Vector2 vector) => Pos = vector;
 }

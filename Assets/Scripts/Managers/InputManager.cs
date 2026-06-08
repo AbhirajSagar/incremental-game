@@ -9,8 +9,6 @@ public class InputManager : Singleton<InputManager>
     private Vector3 HitPoint = Vector3.zero;
 
     public Action<Vector2> OnMouseMove;
-
-    // CACHE: Prevents allocating memory (Garbage Collection) on every click!
     private Collider[] hitColliders = new Collider[30];
 
     protected override void Awake()
@@ -26,15 +24,25 @@ public class InputManager : Singleton<InputManager>
         OnMouseMove?.Invoke(MousePos);
 
         Ray ray = Camera.main.ScreenPointToRay(MousePos);
-        if (Physics.Raycast(ray, out RaycastHit hit))
+        if (Physics.Raycast(ray, out RaycastHit hit, 1000f, DetectLayer))
         {
             HitPoint = hit.point;
+        }
+        else
+        {
+            // [FIXED] If raycast missed the background (clicked outside bounds), HitPoint kept its last position.
+            // Using a mathematical plane intersect ensures HitPoint remains accurate based on the camera angle.
+            Plane fallbackPlane = new Plane(Vector3.forward, Vector3.zero);
+            if (fallbackPlane.Raycast(ray, out float distance))
+            {
+                HitPoint = ray.GetPoint(distance);
+            }
         }
 
         if (!IsInputEnabled || !Mouse.current.leftButton.wasPressedThisFrame) return;
 
-        float attackRadius = GameManager.Instance.Config.AttackRadius;
-        int hitCount = Physics.OverlapSphereNonAlloc(hit.point, attackRadius, hitColliders, DetectLayer);
+        float attackRadius = GameManager.Session.State.AttackRadius;
+        int hitCount = Physics.OverlapSphereNonAlloc(HitPoint, attackRadius, hitColliders, DetectLayer);
 
         for (int i = 0; i < hitCount; i++)
         {
@@ -47,9 +55,9 @@ public class InputManager : Singleton<InputManager>
 
     private void OnDrawGizmos()
     {
-        if (!Application.isPlaying || GameManager.Instance == null) return;
+        if (!Application.isPlaying || GameManager.Instance == null || GameManager.Session == null) return;
 
         Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(HitPoint, GameManager.Instance.Config.AttackRadius);
+        Gizmos.DrawWireSphere(HitPoint, GameManager.Session.State.AttackRadius);
     }
 }

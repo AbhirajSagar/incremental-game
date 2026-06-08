@@ -12,6 +12,8 @@ public class SaveData
     
     public void AddNodeId(string Id)
     {
+        if (HasNode(Id)) return;
+        
         UnlockedNodes.Add(Id);
         SaveManager.SaveNewData(this);
     }
@@ -19,7 +21,6 @@ public class SaveData
     public void SetMoney(int money)
     {
         TotalMoney = money;
-        SaveManager.SaveNewData(this);
     }
 
     public int CurTotalMoney => TotalMoney;

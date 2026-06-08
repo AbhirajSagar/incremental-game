@@ -47,20 +47,9 @@ public class Fish : MonoBehaviour, IClickable
         IsHealthbarVisible = false;
     }
 
-    private void OnEnable()
-    {
-        CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
-    }
-
-    private void OnDisable()
-    {
-        CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
-    }
-
-    private void OnDestroy()
-    {
-        AllFishes.Remove(this);
-    }
+    private void OnEnable() => CameraManager.AlwaysFaceCamera.Add(HealthbarUICanvas.transform);
+    private void OnDisable() => CameraManager.AlwaysFaceCamera.Remove(HealthbarUICanvas.transform);
+    private void OnDestroy() => AllFishes.Remove(this);
 
     private void Update()
     {
@@ -106,13 +95,13 @@ public class Fish : MonoBehaviour, IClickable
         transform.localScale = originalScale;
         hitTween = transform.DOShakeScale(0.5f, AnimationDuration, 10, 1f).SetLink(gameObject);
 
-        float damageAmount = GameManager.Instance.Config.Damage;
+        float damageAmount = GameManager.Session.State.BaseDamage;
         CurHealth = Mathf.Max(CurHealth - damageAmount, 0);
         HealthbarFill.fillAmount = CurHealth / Health;
         
         DamageNumbersGenerator.Instance.Spawn(transform.position, damageAmount);
 
-        if (CurHealth == 0) Death();
+        if (CurHealth <= 0) Death();
     }
 
     private void Death()
@@ -125,10 +114,14 @@ public class Fish : MonoBehaviour, IClickable
         Graphics.SetActive(false);
         HealthbarUICanvas.gameObject.SetActive(false);
         
+        // [FIXED] DeathEffect detached but never destroyed. Caused severe memory leak over time.
         DeathEffect.transform.SetParent(null, true);
         DeathEffect.Play();
+        
+        float effectDuration = DeathEffect.main.duration + DeathEffect.main.startLifetime.constantMax;
+        Destroy(DeathEffect.gameObject, effectDuration);
 
-        GameManager.Instance.Session.AddMoney(SellingPrice);
+        GameManager.Session.AddMoney(SellingPrice);
         Destroy(gameObject, 1f);
     }
 

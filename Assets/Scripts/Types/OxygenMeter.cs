@@ -15,8 +15,8 @@ public class OxygenMeter : IConfigurable, ISessionBindable
 
     public void ApplyConfig(GameConfig config)
     {
-        FillSlider.sizeDelta = new Vector2(config.MaxOxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
-        MaxOxygen = config.MaxOxygen;
+        FillSlider.sizeDelta = new Vector2(GameManager.Session.State.MaxOxygen * SlideWidthAdjust, FillSlider.sizeDelta.y);
+        MaxOxygen = GameManager.Session.State.MaxOxygen;
     }
 
     public void Bind(GameSession session)

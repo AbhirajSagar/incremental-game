@@ -5,7 +5,9 @@ public class GameManager : Singleton<GameManager>
     [Header("Settings")]
     public GameConfig Config; 
     
-    public GameSession Session { get; private set; }
+    public static GameSession Session { get; private set; }
+    public static SaveData CurrentSaveData { get; private set; }
+    
     private float oxygenTimer;
     private bool isGameActive;
 
@@ -14,11 +16,11 @@ public class GameManager : Singleton<GameManager>
         base.Awake();
         
         Session = new GameSession();
-        SaveData Data = SaveManager.LoadData();
+        CurrentSaveData = SaveManager.LoadData();
 
-        Session.OnMoneyChanged += Data.SetMoney;
+        Session.OnMoneyChanged += CurrentSaveData.SetMoney;
 
-        Session.Initialize(Config, Data);
+        Session.Initialize(Config, CurrentSaveData);
         EventManager.Initialize();
         
         isGameActive = true;
@@ -33,16 +35,18 @@ public class GameManager : Singleton<GameManager>
     {
         if (!isGameActive || Session.CurrentOxygen <= 0) return;
 
-        oxygenTimer += Time.deltaTime;
-        if (oxygenTimer >= Config.UnitOxygenDeductionDuration)
+        oxygenTimer += Time.deltaTime * Session.State.OxygenDrainPerSecond;
+        if (oxygenTimer >= 1f)
         {
-            oxygenTimer = 0;
-            Session.DeductOxygen(1, Config.MaxOxygen);
+            int amount = Mathf.FloorToInt(oxygenTimer);
+            oxygenTimer -= amount;
+            Session.DeductOxygen(amount);
         }
     }
 
     public void EndGame()
     {
         isGameActive = false;
+        SaveManager.SaveNewData(CurrentSaveData);
     }
 }

@@ -1,10 +1,9 @@
-using UnityEngine;
-
 public static class EventManager
 {
     public static void Initialize()
     {
-        GameManager.Instance.Session.OnOxygenDepleted += HandleOxygenDepleted;
+        GameManager.Session.OnOxygenDepleted -= HandleOxygenDepleted;
+        GameManager.Session.OnOxygenDepleted += HandleOxygenDepleted;
     }
 
     private static void HandleOxygenDepleted()

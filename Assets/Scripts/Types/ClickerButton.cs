@@ -13,17 +13,16 @@ public class ClickerButton : Button
     public event Action OnPointerEnterAction;
     public event Action OnPointerExitAction;
 
-
     protected override void Awake()
     {
         base.Awake();
-
         Shadow = transform.GetChild(0).GetComponent<RectTransform>();
         Graphics = transform.GetChild(1).GetComponent<RectTransform>();
     }
 
     public override void OnPointerDown(PointerEventData eventData)
     {
+        if (!IsInteractable()) return; // [FIXED] Disable animation & clicks if Interactable is false
         base.OnPointerDown(eventData);
 
         Graphics.DOKill();
@@ -32,18 +31,21 @@ public class ClickerButton : Button
 
     public override void OnPointerEnter(PointerEventData eventData)
     {
+        if (!IsInteractable()) return; // [FIXED]
         base.OnPointerEnter(eventData);
         OnPointerEnterAction?.Invoke();
     }
 
     public override void OnPointerExit(PointerEventData eventData)
     {
+        if (!IsInteractable()) return; // [FIXED]
         base.OnPointerExit(eventData);
         OnPointerExitAction?.Invoke();
     }
 
     public override void OnPointerUp(PointerEventData eventData)
     {
+        if (!IsInteractable()) return; // [FIXED]
         base.OnPointerUp(eventData);
 
         Graphics.DOKill();
