@@ -93,15 +93,73 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UpgradeNode
   UpgradeIconButton: {fileID: 7976919181924698631}
-  Icon: {fileID: 7182860108871561954}
   TooltipContainer: {fileID: 183968999706266353}
+  TooltipContainerBackground: {fileID: 5357718691072163034}
+  TooltipHeaderBackground: {fileID: 4483971799199932843}
+  TooltipShortDescriptionBackground: {fileID: 7491782517016963778}
+  TooltipShadowBackground: {fileID: 8946734935914785704}
+  CheckIcon: {fileID: 4266789303242089328}
+  ButtonGraphics: {fileID: 1057911103431242435}
+  ShadowGraphics: {fileID: 5784002643759384840}
+  ButtonOutline: {fileID: 6677111615696156087}
+  Icon: {fileID: 7182860108871561954}
   UpgradeTitle: {fileID: 8222462445687389259}
   UpgradePrice: {fileID: 6801169880017509621}
   UpgradeDescription: {fileID: 7690337424021334979}
   UpgradePropertyName: {fileID: 2064280321498255605}
   UpgradePropertyChange: {fileID: 3989302127806546294}
+  InactiveState:
+    Interactable: 0
+    ButtonColor: {r: 0.31085077, g: 0.55009, b: 0.7132075, a: 1}
+    ShadowColor: {r: 0.2064578, g: 0.32273313, b: 0.4037736, a: 1}
+    IconColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowCheckmark: 0
+    OutlineColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowPrice: 1
+    TooltipContainerBackground: {r: 0.30980393, g: 0.54901963, b: 0.7137255, a: 1}
+    TooltipHeaderBackground: {r: 0.17003201, g: 0.44255203, b: 0.6301887, a: 1}
+    TooltipShadowBackground: {r: 0.20784314, g: 0.32156864, b: 0.40392157, a: 1}
+    TitleColor: {r: 1, g: 1, b: 1, a: 1}
+    PriceColor: {r: 1, g: 0, b: 0, a: 1}
+    DescriptionColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyNameColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyChangeColor: {r: 1, g: 1, b: 1, a: 1}
+  LockedState:
+    Interactable: 1
+    ButtonColor: {r: 0, g: 0.65882355, b: 1, a: 1}
+    ShadowColor: {r: 0.009818403, g: 0.49311665, b: 0.7433963, a: 1}
+    IconColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowCheckmark: 0
+    OutlineColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowPrice: 1
+    TooltipContainerBackground: {r: 0, g: 0.65882355, b: 1, a: 1}
+    TooltipHeaderBackground: {r: 0, g: 0.50965583, b: 0.7735849, a: 1}
+    TooltipShadowBackground: {r: 0.011764706, g: 0.49411765, b: 0.74509805, a: 1}
+    TitleColor: {r: 1, g: 1, b: 1, a: 1}
+    PriceColor: {r: 1, g: 1, b: 1, a: 1}
+    DescriptionColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyNameColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyChangeColor: {r: 1, g: 1, b: 1, a: 1}
+  UnlockedState:
+    Interactable: 0
+    ButtonColor: {r: 1, g: 0.6303698, b: 0.043137252, a: 1}
+    ShadowColor: {r: 0.7207546, g: 0.4430869, b: 0, a: 1}
+    IconColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowCheckmark: 1
+    OutlineColor: {r: 1, g: 1, b: 1, a: 1}
+    ShowPrice: 0
+    TooltipContainerBackground: {r: 1, g: 0.6313726, b: 0.043137256, a: 1}
+    TooltipHeaderBackground: {r: 0.78113204, g: 0.48020416, b: 0, a: 1}
+    TooltipShadowBackground: {r: 0.72156864, g: 0.44313726, b: 0, a: 1}
+    TitleColor: {r: 1, g: 1, b: 1, a: 1}
+    PriceColor: {r: 1, g: 1, b: 1, a: 1}
+    DescriptionColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyNameColor: {r: 1, g: 1, b: 1, a: 1}
+    PropertyChangeColor: {r: 1, g: 1, b: 1, a: 1}
   TooltipPopupDuration: 0.15
-  IconShakeStrength: 0.5
+  HoverScaleMultiplier: 0.8
+  PreviewInEditor: 0
+  PreviewState: 2
 --- !u!114 &7976919181924698631
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -121,7 +179,7 @@ MonoBehaviour:
     m_SelectOnDown: {fileID: 0}
     m_SelectOnLeft: {fileID: 0}
     m_SelectOnRight: {fileID: 0}
-  m_Transition: 1
+  m_Transition: 0
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
     m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
@@ -141,7 +199,7 @@ MonoBehaviour:
     m_PressedTrigger: Pressed
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
-  m_Interactable: 1
+  m_Interactable: 0
   m_TargetGraphic: {fileID: 1057911103431242435}
   m_OnClick:
     m_PersistentCalls:
@@ -180,6 +238,7 @@ RectTransform:
   m_Children:
   - {fileID: 8268422579690011476}
   - {fileID: 7893701845294374069}
+  - {fileID: 1158255036486889187}
   m_Father: {fileID: 4343286715594581263}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -208,7 +267,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.45496103, b: 0.690566, a: 1}
+  m_Color: {r: 0.78113204, g: 0.48020416, b: 0, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -292,7 +351,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1765444594951717424}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
@@ -324,7 +383,7 @@ MonoBehaviour:
     bottomLeft: {r: 1, g: 0, b: 0.06344819, a: 1}
     bottomRight: {r: 1, g: 0, b: 0.06344819, a: 1}
   m_fontColorGradientPreset: {fileID: 0}
-  m_spriteAsset: {fileID: 0}
+  m_spriteAsset: {fileID: 11400000, guid: 9d60e2cc705f39a42a8e0e1d53be0128, type: 2}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
   m_TextStyleHashCode: -1183493901
@@ -438,7 +497,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.65882355, b: 1, a: 1}
+  m_Color: {r: 1, g: 0.6313726, b: 0.043137256, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -575,7 +634,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.52269334, b: 0.78867924, a: 1}
+  m_Color: {r: 0.7207546, g: 0.4430869, b: 0, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -805,7 +864,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.65882355, b: 1, a: 1}
+  m_Color: {r: 1, g: 0.6313726, b: 0.043137256, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -927,8 +986,8 @@ MonoBehaviour:
     serializedVersion: 2
     rgba: 4294967295
   m_fontColor: {r: 1, g: 1, b: 1, a: 1}
-  m_enableVertexGradient: 0
-  m_colorMode: 3
+  m_enableVertexGradient: 1
+  m_colorMode: 2
   m_fontColorGradient:
     topLeft: {r: 1, g: 1, b: 1, a: 1}
     topRight: {r: 1, g: 1, b: 1, a: 1}
@@ -1049,7 +1108,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.6626185, b: 1, a: 1}
+  m_Color: {r: 1, g: 0.6303698, b: 0.043137252, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1269,6 +1328,81 @@ MonoBehaviour:
   m_hasFontAssetChanged: 0
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!1 &7461314325305492495
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1158255036486889187}
+  - component: {fileID: 1253785415244404590}
+  - component: {fileID: 4266789303242089328}
+  m_Layer: 2
+  m_Name: CheckIcon
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1158255036486889187
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7461314325305492495}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 5919594492752485086}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 1, y: 0.5}
+  m_AnchorMax: {x: 1, y: 0.5}
+  m_AnchoredPosition: {x: -9.6, y: 0}
+  m_SizeDelta: {x: 55, y: 55}
+  m_Pivot: {x: 1, y: 0.5}
+--- !u!222 &1253785415244404590
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7461314325305492495}
+  m_CullTransparentMesh: 1
+--- !u!114 &4266789303242089328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7461314325305492495}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: 180c31c361863854589ad17761d52bb2, type: 3}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
 --- !u!1 &7494412257076049397
 GameObject:
   m_ObjectHideFlags: 0
@@ -1328,7 +1462,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0.52156866, b: 0.78823537, a: 1}
+  m_Color: {r: 0.72156864, g: 0.44313726, b: 0, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1

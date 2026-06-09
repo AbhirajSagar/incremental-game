@@ -31,14 +31,12 @@ public class ClickerButton : Button
 
     public override void OnPointerEnter(PointerEventData eventData)
     {
-        if (!IsInteractable()) return; // [FIXED]
         base.OnPointerEnter(eventData);
         OnPointerEnterAction?.Invoke();
     }
 
     public override void OnPointerExit(PointerEventData eventData)
     {
-        if (!IsInteractable()) return; // [FIXED]
         base.OnPointerExit(eventData);
         OnPointerExitAction?.Invoke();
     }

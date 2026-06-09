@@ -6,21 +6,50 @@ using UnityEngine;
 
 public class UpgradeManager : Singleton<UpgradeManager>
 {
+    public float DistBtwNodes = 1f;
     public UpgradeData[] Upgrades;
     public UpgradeNode NodePrefab;
     public RectTransform CanvasParent; 
+    public RectTransform RootPos;
+
+    private List<UpgradeNode> _nodes = new();
+    private List<UpgradeData> SortedUpgrades = new();
 
     public void Initialize()
     {
-        CreateUpgradeTreeNodes();
+        SortedUpgrades = Upgrades.OrderBy(GetDepth).ToList();
+        UIManager.Instance.OnUpgradeScreenShow += CreateUpgradeTreeNodes;
+    }
+
+    private int GetDepth(UpgradeData upgrade)
+    {
+        int depth = 0;
+
+        while (upgrade.UnlockAfter != null)
+        {
+            depth++;
+            upgrade = upgrade.UnlockAfter;
+        }
+
+        return depth;
     }
 
     private void CreateUpgradeTreeNodes()
     {
-        foreach(var upgrade in Upgrades)
+        foreach(UpgradeNode node in _nodes)
+            Destroy(node.gameObject);
+        
+        _nodes.Clear();
+
+        Vector3 Base = new Vector3(DistBtwNodes * RootPos.transform.position.x, 0f, DistBtwNodes * RootPos.transform.position.z);
+        for (int i = 0; i < SortedUpgrades.Count; i++)
         {
-            UpgradeNode node = Instantiate(NodePrefab, CanvasParent);
-            node.Initialize(upgrade);
+            UpgradeNode node = Instantiate(NodePrefab, Base * i, Quaternion.identity, CanvasParent);
+            node.Initialize(SortedUpgrades[i], i, out bool Purchased);
+            _nodes.Add(node);
+
+            if(!Purchased) 
+                break;
         }
     }
 

@@ -50,6 +50,9 @@ public class UpgradeData : ScriptableObject
     public List<StatModifier> StatModifiers = new List<StatModifier>();
     public List<FlagModifier> FlagModifiers = new List<FlagModifier>();
 
+    public UpgradeData UnlockAfter = null;
+
+
     [ContextMenu("Generate Id")]
     public void GenerateId()
     {
@@ -112,6 +115,7 @@ public class UpgradeData : ScriptableObject
 
     private string GetChange()
     {
+        if (GameManager.CurrentSaveData.HasNode(Id)) return $"{ComputeCurrentValue()}";
         if (!string.IsNullOrEmpty(TooltipData.Change)) return TooltipData.Change;
         return $"{ComputeCurrentValue()} > {ComputeUpgradedValue()}";
     }

@@ -28,7 +28,7 @@ MonoBehaviour:
     PhantomHarpoonDamagePercent: 0.1
     PhantomHarpoonDuration: 3
     MaxOxygen: 100
-    OxygenDrainPerSecond: 1
+    OxygenDrainPerSecond: 5
     OxygenRestoredPerKill: 0
     GoldenFishOxygenRestore: 0
     VampireFangsPercent: 0

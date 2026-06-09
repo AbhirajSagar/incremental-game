@@ -14,11 +14,6 @@ public class UpgradeTreeScreen : IUiScreen, IConfigurable
         BackButton.onClick.AddListener(UIManager.Instance.ReturnToDiveCompleteScreen);
     }
 
-    private void InitializeTreeUI(GameConfig config)
-    {
-        
-    }
-
     public void Hide()
     {
         Root.SetActive(false);

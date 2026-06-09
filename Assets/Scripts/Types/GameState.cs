@@ -21,6 +21,7 @@ public class GameState
     /// <summary>
     /// Radius of the Attack Detection Sphere Check
     /// </summary>
+    [FormerlySerializedAs("Radius")]
     [Range(1f, 15f)] public float AttackRadius = 1f;
 
     [Header("Critical Strikes")]

@@ -10,18 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7ad02c366c6b9c64f96752fd23b0b44b, type: 3}
-  m_Name: AttackDataUpgrade
+  m_Name: attack-radius-2
   m_EditorClassIdentifier: Assembly-CSharp::UpgradeData
-  Id: eb5da7ac611f48e1bc828fa2741029bf
-  Price: 5
+  Id: 7ed02e729ea04bc395e67251fc1de6c7
+  Price: 10
   Icon: {fileID: 21300000, guid: fe906f3ef897252498128155416284de, type: 3}
   TooltipData:
     Title: Attack Radius
-    Description: Increases Attack Radius from 1 to 2.
-    Property: Radius
-    Change: 1 > 2
+    Description: Twice the radius of attack.
+    Property: 
+    Change: 
   StatModifiers:
   - StatName: AttackRadius
-    Value: 2
+    Value: 4
     ModType: 2
   FlagModifiers: []
+  UnlockAfter: {fileID: 11400000, guid: 5a5011aceeb649e41beb92c4d467c288, type: 2}
