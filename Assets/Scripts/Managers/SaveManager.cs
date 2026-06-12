@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -6,12 +7,15 @@ public class SaveManager
 {
     private static readonly string FileName = "playerData.json";
 
+    public static event Action<SaveData> OnDataRefresh;
+
     public static void SaveNewData(SaveData Data)
     {
         string path = Path.Combine(Application.persistentDataPath, FileName);
         string json = JsonUtility.ToJson(Data, true);
 
         File.WriteAllText(path, json);
+        OnDataRefresh?.Invoke(LoadData());
     }
 
     public static SaveData LoadData()
@@ -24,7 +28,7 @@ public class SaveManager
         }
 
         string json = File.ReadAllText(path);
-        return JsonUtility.FromJson<SaveData>(json);
+        return string.IsNullOrEmpty(json) ? new() : JsonUtility.FromJson<SaveData>(json);
     }
 
     [MenuItem("Tools/Clear Saved Data")]

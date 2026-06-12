@@ -15,6 +15,7 @@ public class Fish : MonoBehaviour, IClickable
     public Image HealthbarFill;
     public ParticleSystem DeathEffect;
     public GameObject Graphics;
+    public AudioSource HitSoundSFX;
 
     [Header("ANIMATION SETTINGS")]
     public float AnimationDuration = 0.5f;
@@ -90,6 +91,7 @@ public class Fish : MonoBehaviour, IClickable
     {
         ClickSplashEffect.Play();
         CameraManager.Instance.TriggerCameraShake(CAMERA_SHAKE.FISH_DAMAGE);
+        AudioManager.Instance.PlaySFX(SFX_EFFECTS.FISH_HIT, HitSoundSFX, true);
 
         hitTween?.Kill();
         transform.localScale = originalScale;

@@ -10,6 +10,8 @@ public class GameManager : Singleton<GameManager>
     
     private float oxygenTimer;
     private bool isGameActive;
+    private int InitialMoney;
+    public int MoneyEarned => CurrentSaveData.CurTotalMoney - InitialMoney;
 
     protected override void Awake()
     {
@@ -19,8 +21,10 @@ public class GameManager : Singleton<GameManager>
         CurrentSaveData = SaveManager.LoadData();
 
         Session.OnMoneyChanged += CurrentSaveData.SetMoney;
+        InitialMoney = CurrentSaveData.CurTotalMoney;
 
         Session.Initialize(Config, CurrentSaveData);
+        AudioManager.Instance.Initialize(CurrentSaveData);
         EventManager.Initialize();
         
         isGameActive = true;

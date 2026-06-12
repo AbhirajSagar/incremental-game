@@ -10,6 +10,7 @@ public class InputManager : Singleton<InputManager>
 
     public Action<Vector2> OnMouseMove;
     private Collider[] hitColliders = new Collider[30];
+    public int MissedCount { get; private set; } = 0;
 
     protected override void Awake()
     {
@@ -41,6 +42,8 @@ public class InputManager : Singleton<InputManager>
 
         if (!IsInputEnabled || !Mouse.current.leftButton.wasPressedThisFrame) return;
 
+
+        bool Damaged = false;
         float attackRadius = GameManager.Session.State.AttackRadius;
         int hitCount = Physics.OverlapSphereNonAlloc(HitPoint, attackRadius, hitColliders, DetectLayer);
 
@@ -48,8 +51,14 @@ public class InputManager : Singleton<InputManager>
         {
             if (hitColliders[i].TryGetComponent(out IClickable clickable))
             {
+                Damaged = true;
                 clickable.OnClick();
             }
+        }
+
+        if(!Damaged)
+        {
+            MissedCount++;
         }
     }
 

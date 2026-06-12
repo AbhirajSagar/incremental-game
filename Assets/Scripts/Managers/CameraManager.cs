@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class CameraManager : Singleton<CameraManager>
 {
@@ -15,7 +16,6 @@ public class CameraManager : Singleton<CameraManager>
     protected override void Awake()
     {
         base.Awake();
-        // [FIXED] Static lists must be explicitly cleared on scene load, otherwise they hold destroyed references
         AlwaysFaceCamera.Clear(); 
     }
 
@@ -26,6 +26,8 @@ public class CameraManager : Singleton<CameraManager>
             if (AlwaysFaceCamera[i] != null)
                 AlwaysFaceCamera[i].rotation = MainCamera.transform.rotation;
         }
+
+        transform.LookAt(Camera.main.ScreenToWorldPoint(Mouse.current.position.ReadValue()));
     }
 
     public void TriggerCameraShake(CAMERA_SHAKE ShakeType)

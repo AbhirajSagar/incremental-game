@@ -91,13 +91,15 @@ public class UpgradeNode : MonoBehaviour
     private UpgradeData _upgradeData;
     private Vector3 _originalIconScale;
 
-    private bool PurchasedAlready => GameManager.CurrentSaveData.HasNode(_upgradeData.Id);
-    private bool Affordable => GameManager.Session.CurrentMoney >= _upgradeData.Price;
+    public bool PurchasedAlready => GameManager.CurrentSaveData.HasNode(_upgradeData.Id);
+    public bool Affordable => GameManager.Session.CurrentMoney >= _upgradeData.Price;
+    public bool IsPrerequisiteMet => _upgradeData.UnlockAfter == null || GameManager.CurrentSaveData.HasNode(_upgradeData.UnlockAfter.Id);
     private Vector3 OrgScale;
 
 
-    private void AnimateInNode(float delay)
+    public void SpawnNode(float delay)
     {
+        gameObject.SetActive(true);
         OrgScale = transform.localScale;
         transform.localScale = Vector3.zero;
         transform.DOScale(OrgScale, 0.2f).SetEase(Ease.OutBack).SetDelay(delay);
@@ -124,14 +126,21 @@ public class UpgradeNode : MonoBehaviour
         UIManager.Instance.OnUpgradeScreenShow += RefreshState;
 
         _originalIconScale = Icon.transform.localScale;
-        AnimateInNode(i * DelayInNodeAnim);
+        OrgScale = transform.localScale; // Save scale early just in case
     }
 
-    private void RefreshState()
+    public void RefreshState()
     {
         if (PurchasedAlready)
         {
             ApplyState(UpgradeNodeState.Unlocked);
+            return;
+        }
+
+        if (!IsPrerequisiteMet)
+        {
+            ApplyState(UpgradeNodeState.Inactive);
+            Interactable = false; // Override just in case the InactiveState visually allows interaction
             return;
         }
 
@@ -184,11 +193,13 @@ public class UpgradeNode : MonoBehaviour
         _upgradeData.Apply(GameManager.Session.State);
 
         OnHoverEnd();
-        RefreshState();
+        UpgradeManager.Instance.UpdateTree();
     }
 
     private void OnHoverStart()
     {
+        transform.SetAsLastSibling(); // Brings this node (and its tooltip) to the front of the UI
+        
         TooltipContainer.DOComplete();
         Icon.transform.DOComplete();
 
